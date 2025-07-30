@@ -3,15 +3,52 @@ import { motion } from 'framer-motion';
 import { Heart, Briefcase, Sprout, Sparkles, Star, ArrowRight, Share2, Save } from 'lucide-react';
 import { useTracking } from './hooks/useTracking';
 import { EVENTS } from './constants/events';
+import { enhancedTracker } from './utils/enhanced-tracking';
 
 const ArcaneCards = () => {
-  const { track, trackPageView, trackUserAction } = useTracking();
+  const trackUserAction = enhancedTracker.track.bind(enhancedTracker);
   
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [selectedQuestion, setSelectedQuestion] = useState(null);
   const [selectedCards, setSelectedCards] = useState([]);
   const [shuffledDeck, setShuffledDeck] = useState([]);
+  const handleEmailCollection = (email, planId) => {
+    trackUserAction('email_provided', {
+      email: email,
+      plan_id: planId,
+      plan_interest: `${planId}_reading_waitlist`,
+      question_category: selectedQuestion?.id,
+      collection_source: 'payment_intent_dialog',
+      user_rating: userRating,
+      follow_up_status: 'pending'
+    });
+  };
+
+  const handleReadingComplete = (reading, cards) => {
+    trackUserAction('reading_completed', {
+      question_text: selectedQuestion?.question,
+      question_category: selectedQuestion?.id,
+      plan_id: selectedPlan?.id,
+      card_name: cards[0]?.name,
+      card_upright: cards[0]?.upright,
+      ai_reading: reading.reading,
+      key_insight: reading.keyInsight,
+      reading_length: reading.reading?.length || 0
+    });
+  };
+
+  const handleDetailedRating = (rating, feedback = '') => {
+    trackUserAction('rating_given', {
+      rating: rating,
+      user_feedback: feedback,
+      plan_id: selectedPlan?.id,
+      card_name: selectedCards[0]?.name,
+      question_category: selectedQuestion?.id,
+      time_to_rate: Date.now() - pageStartTime,
+      detailed_feedback: rating >= 4 ? 'positive_experience' : 'needs_improvement'
+    });
+  };
   
   // 选牌页面的内部状态
   const [cardSelectionPhase, setCardSelectionPhase] = useState('preparing');

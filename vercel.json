@@ -1,0 +1,17 @@
+{
+  "functions": {
+    "api/google-sheets.js": {
+      "maxDuration": 10
+    }
+  },
+  "env": {
+    "GOOGLE_SHEETS_API_KEY": "@google-sheets-api-key",
+    "GOOGLE_SHEETS_SPREADSHEET_ID": "@google-sheets-spreadsheet-id",
+    "GA4_MEASUREMENT_ID": "G-ETSZEESNGZ"
+  },
+  "build": {
+    "env": {
+      "NODE_ENV": "production"
+    }
+  }
+}
