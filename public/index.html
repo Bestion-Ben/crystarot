@@ -1,5 +1,25 @@
 <!DOCTYPE html>
 <html lang="en">
+  <!-- Google Analytics 4 -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-ETSZEESNGZ"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    
+    gtag('config', 'G-ETSZEESNGZ', {
+      // 自定义配置
+      anonymize_ip: true,
+      allow_google_signals: false,
+      cookie_expires: 63072000, // 2年
+      page_title: 'ArcaneCards - AI Tarot Reading'
+    });
+    
+    // 调试模式（可选，生产环境可以删除）
+    gtag('config', 'G-ETSZEESNGZ', {
+      debug_mode: true
+    });
+  </script>
   <head>
     <meta charset="utf-8" />
     <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />

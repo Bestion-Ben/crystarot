@@ -7,21 +7,28 @@ export const useTracking = () => {
     tracker.track(eventName, data);
   }, []);
 
-  // 页面访问追踪
+  // 页面访问追踪（更新为使用tracker的新方法）
   const trackPageView = useCallback((pageName, pageData = {}) => {
-    track(EVENTS.PAGE_VIEW, {
-      page: pageName,
-      ...pageData
-    });
-  }, [track]);
+    tracker.trackPageView(pageName, pageData);
+  }, []);
 
   // 用户行为追踪
   const trackUserAction = useCallback((action, data = {}) => {
-    track(action, {
+    tracker.track(action, {
       timestamp: Date.now(),
       ...data
     });
-  }, [track]);
+  }, []);
 
-  return { track, trackPageView, trackUserAction };
+  // 新增：转化追踪
+  const trackConversion = useCallback((conversionType, value = 0) => {
+    tracker.trackConversion(conversionType, value);
+  }, []);
+
+  return { 
+    track, 
+    trackPageView, 
+    trackUserAction, 
+    trackConversion 
+  };
 };
