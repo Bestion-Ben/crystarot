@@ -13,5 +13,11 @@
     "env": {
       "NODE_ENV": "production"
     }
-  }
+  },
+  "rewrites": [
+    {
+      "source": "/((?!api/.*).*)",
+      "destination": "/index.html"
+    }
+  ]
 }

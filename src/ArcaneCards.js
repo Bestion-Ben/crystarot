@@ -7,6 +7,9 @@ import { enhancedTracker } from './utils/enhanced-tracking';
 
 const ArcaneCards = () => {
   const trackUserAction = enhancedTracker.track.bind(enhancedTracker);
+  const trackPageView = (pageName, pageData = {}) => {
+    enhancedTracker.track('page_view', { page: pageName, ...pageData });
+  };
   
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedPlan, setSelectedPlan] = useState(null);
@@ -219,7 +222,7 @@ const ArcaneCards = () => {
     
     // 重置页面开始时间
     setPageStartTime(Date.now());
-  }, [currentPage, selectedPlan, selectedQuestion, trackPageView]);
+  }, [currentPage, selectedPlan, selectedQuestion]);
 
   // 初始化洗牌后的牌组
   useEffect(() => {
