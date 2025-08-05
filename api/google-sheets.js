@@ -1,10 +1,12 @@
-// api/google-sheets.js - 正确的API端点文件
+// api/google-sheets.js - 修正后的导出格式
 
-export default async function handler(req, res) {
+// 使用CommonJS导出 - Vercel推荐的格式
+module.exports = async function handler(req, res) {
   // CORS设置
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Content-Type', 'application/json'); // 强制设置JSON响应
   
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
@@ -25,6 +27,8 @@ export default async function handler(req, res) {
     
     return res.status(200).json({
       success: true,
+      timestamp: new Date().toISOString(),
+      vercel_function: true, // 确认这是从Vercel Function返回的
       environment: envStatus,
       allConfigured: Object.values(envStatus).slice(0, 4).every(Boolean)
     });
@@ -87,7 +91,7 @@ export default async function handler(req, res) {
       type: error.name
     });
   }
-}
+};
 
 // 使用Service Account认证写入Google Sheets
 async function appendToGoogleSheet(data, sheetName) {
@@ -96,7 +100,7 @@ async function appendToGoogleSheet(data, sheetName) {
   
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${process.env.GOOGLE_SHEETS_SPREADSHEET_ID}/values/${sheetName}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`;
   
-  // 确保数据顺序正确 - 匹配你的enhanced-tracking.js格式
+  // 确保数据顺序正确
   const orderedRow = [
     data.timestamp,
     data.session_id,
@@ -120,11 +124,11 @@ async function appendToGoogleSheet(data, sheetName) {
   const response = await fetch(url, {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${accessToken}`, // 使用动态获取的token
+      'Authorization': `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      values: [orderedRow] // 使用有序数组
+      values: [orderedRow]
     })
   });
 
@@ -138,7 +142,8 @@ async function appendToGoogleSheet(data, sheetName) {
 
 // 获取Service Account访问令牌
 async function getServiceAccountToken() {
-  const crypto = await import('crypto');
+  // 动态导入crypto模块
+  const { createSign } = await import('crypto');
   
   const client_email = process.env.GOOGLE_CLIENT_EMAIL;
   const private_key = process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n');
@@ -158,8 +163,7 @@ async function getServiceAccountToken() {
   const encodedPayload = base64UrlEncode(JSON.stringify(payload));
   const signatureInput = `${encodedHeader}.${encodedPayload}`;
   
-  const signature = crypto.default
-    .createSign('RSA-SHA256')
+  const signature = createSign('RSA-SHA256')
     .update(signatureInput)
     .sign(private_key, 'base64')
     .replace(/\+/g, '-')
