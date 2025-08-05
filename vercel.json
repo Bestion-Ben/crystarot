@@ -1,38 +1,19 @@
 {
-  "version": 2,
   "functions": {
     "api/**/*.js": {
       "runtime": "nodejs18.x",
       "maxDuration": 10
     }
   },
-  "builds": [
+  "rewrites": [
     {
-      "src": "package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "build"
-      }
-    }
-  ],
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "/api/$1"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/index.html"
+      "source": "/((?!api/.*).*)",
+      "destination": "/index.html"
     }
   ],
   "env": {
     "GOOGLE_SHEETS_API_KEY": "@google-sheets-api-key",
-    "GOOGLE_SHEETS_SPREADSHEET_ID": "@google-sheets-spreadsheet-id",
+    "GOOGLE_SHEETS_SPREADSHEET_ID": "@google-sheets-spreadsheet-id", 
     "GA4_MEASUREMENT_ID": "G-ETSZEESNGZ"
-  },
-  "build": {
-    "env": {
-      "NODE_ENV": "production"
-    }
   }
 }
