@@ -1,0 +1,4 @@
+{
+  "/api/ai-reading/generate/route": "app/api/ai-reading/generate/route.js",
+  "/page": "app/page.js"
+}
