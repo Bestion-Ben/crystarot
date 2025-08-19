@@ -1,5 +1,18 @@
 // 所有埋点事件常量
 export const EVENTS = {
+
+  // 新增API相关事件
+  AI_READING_ATTEMPT: 'ai_reading_attempt',
+  AI_READING_SUCCESS: 'ai_reading_success', 
+  AI_READING_FAILED: 'ai_reading_failed',
+  LOCAL_FALLBACK_USED: 'local_fallback_used',
+  API_TIMEOUT: 'api_timeout',
+  API_ERROR: 'api_error',
+   // AI个性化追踪
+  AI_PERSONALIZED_SUCCESS: 'ai_personalized_success',
+  AI_PERSONALIZED_FAILED: 'ai_personalized_failed',
+
+
   // 会话事件
   SESSION_START: 'session_start',
   SESSION_END: 'session_end',
@@ -13,6 +26,17 @@ export const EVENTS = {
   PLAN_CLICKED: 'plan_clicked',
   QUESTION_TYPE_SELECTED: 'question_type_selected',
   CUSTOM_QUESTION_ENTERED: 'custom_question_entered',
+
+  // 新增问题相关事件
+  CUSTOM_QUESTION_CLEARED: 'custom_question_cleared',
+  QUESTION_INPUT_FOCUSED: 'question_input_focused',
+  SPECIFIC_QUESTION_USED: 'specific_question_used',
+  GENERIC_QUESTION_USED: 'generic_question_used',
+  
+  // 问题质量追踪
+  QUESTION_QUALITY_HIGH: 'question_quality_high',
+  QUESTION_QUALITY_MEDIUM: 'question_quality_medium',
+  QUESTION_QUALITY_LOW: 'question_quality_low',
   
   // 抽卡流程事件
   CARD_SELECTION_START: 'card_selection_start',

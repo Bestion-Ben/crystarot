@@ -1,14 +1,24 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Heart, Briefcase, Sprout, Sparkles, Star, ArrowRight, Share2, Save } from 'lucide-react';
-import { useTracking } from './hooks/useTracking';
+
 import { EVENTS } from './constants/events';
-import { enhancedTracker } from './utils/enhanced-tracking';
+import { tracker } from './utils/tracking';
 
 const ArcaneCards = () => {
-  const trackUserAction = enhancedTracker.track.bind(enhancedTracker);
+  // ✅ 临时替换追踪函数 - 简单的控制台日志
+  const trackUserAction = (eventName, data = {}) => {
+    tracker.track(eventName, data);
+  };
+
   const trackPageView = (pageName, pageData = {}) => {
-    enhancedTracker.track('page_view', { page: pageName, ...pageData });
+    tracker.trackPageView(pageName, pageData);
+  };
+
+  const API_CONFIG = {
+    timeout: 8000, // 8秒超时
+    retries: 2,
+    baseURL: process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : ''
   };
   
   const [currentPage, setCurrentPage] = useState(1);
@@ -16,6 +26,10 @@ const ArcaneCards = () => {
   const [selectedQuestion, setSelectedQuestion] = useState(null);
   const [selectedCards, setSelectedCards] = useState([]);
   const [shuffledDeck, setShuffledDeck] = useState([]);
+  const [customQuestion, setCustomQuestion] = useState('');
+  const [showQuestionInput, setShowQuestionInput] = useState(false);
+  const [questionInputFocused, setQuestionInputFocused] = useState(false);
+  
   const handleEmailCollection = (email, planId) => {
     trackUserAction('email_provided', {
       email: email,
@@ -70,7 +84,7 @@ const ArcaneCards = () => {
 
   // 22张大阿尔卡纳塔罗牌
   const tarotCards = [
-    { id: 0, name: 'The Fool', symbol: '𓀀', meaning: 'New beginnings, innocence, spontaneity, free spirit', upright: true, element: 'Air' },
+    { id: 0, name: 'The Fool', symbol: '𝔀€', meaning: 'New beginnings, innocence, spontaneity, free spirit', upright: true, element: 'Air' },
     { id: 1, name: 'The Magician', symbol: '☿', meaning: 'Manifestation, resourcefulness, power, inspired action', upright: true, element: 'Fire' },
     { id: 2, name: 'The High Priestess', symbol: '☽', meaning: 'Intuition, sacred knowledge, inner voice, mystery', upright: false, element: 'Water' },
     { id: 3, name: 'The Empress', symbol: '♀', meaning: 'Femininity, beauty, nature, nurturing, abundance', upright: true, element: 'Earth' },
@@ -112,7 +126,7 @@ const ArcaneCards = () => {
     'Death': { symbol: '🦋', accent: '🌅', color: 'from-gray-500 to-slate-600' },
     'Temperance': { symbol: '⚗️', accent: '🌈', color: 'from-blue-400 to-purple-500' },
     'The Devil': { symbol: '😈', accent: '⛓️', color: 'from-red-600 to-black' },
-    'The Tower': { symbol: '🏗️', accent: '⚡', color: 'from-red-500 to-orange-600' },
+    'The Tower': { symbol: '🗽', accent: '⚡', color: 'from-red-500 to-orange-600' },
     'The Star': { symbol: '⭐', accent: '✨', color: 'from-blue-300 to-purple-400' },
     'The Moon': { symbol: '🌙', accent: '🐺', color: 'from-indigo-400 to-purple-600' },
     'The Sun': { symbol: '☀️', accent: '🌻', color: 'from-yellow-400 to-orange-500' },
@@ -205,7 +219,7 @@ const ArcaneCards = () => {
       userAgent: getUserAgent(),
       screenSize: getScreenSize()
     });
-  }, [trackUserAction]);
+  }, []);
 
   // 页面切换追踪
   useEffect(() => {
@@ -235,7 +249,7 @@ const ArcaneCards = () => {
         totalCards: shuffled.length
       });
     }
-  }, [trackUserAction]);
+  }, []);
 
   // 清理定时器
   useEffect(() => {
@@ -272,7 +286,7 @@ const ArcaneCards = () => {
     return <div className="absolute inset-0 overflow-hidden pointer-events-none">{stars}</div>;
   });
 
-  // 升级的卡牌组件
+  // 升级的卡片组件
   const Card = React.memo(({ card, index, isSelected, onClick, isRevealed = false }) => {
     const cardSymbol = CardSymbols[card.name] || { 
       symbol: '✦', 
@@ -558,33 +572,152 @@ const ArcaneCards = () => {
     }
   };
 
-  // 问题类型选择处理
+  // 问题类型选择处理 - 完整版本
   const handleQuestionSelection = (questionType) => {
     const timeOnPage = Date.now() - pageStartTime;
+    const previousQuestion = selectedQuestion;
+    const hadCustomQuestion = customQuestion.trim().length > 0;
     
+    // 详细追踪问题选择
     trackUserAction(EVENTS.QUESTION_TYPE_SELECTED, {
       questionType: questionType.id,
-      questionText: questionType.question,
+      questionTitle: questionType.title,
+      defaultQuestion: questionType.question,
       selectionTime: timeOnPage,
-      changedSelection: selectedQuestion ? true : false
+      changedSelection: previousQuestion ? true : false,
+      previousQuestionType: previousQuestion?.id,
+      hadPreviousCustomQuestion: hadCustomQuestion,
+      previousCustomQuestionLength: customQuestion.trim().length,
+      userBehavior: {
+        isReselection: previousQuestion?.id === questionType.id,
+        isSwitchingCategory: previousQuestion && previousQuestion.id !== questionType.id
+      }
     });
     
+    // 如果切换了问题类型，处理自定义问题
+    if (previousQuestion && previousQuestion.id !== questionType.id) {
+      if (hadCustomQuestion) {
+        trackUserAction(EVENTS.CUSTOM_QUESTION_CLEARED, {
+          clearedQuestionLength: customQuestion.trim().length,
+          clearedFromCategory: previousQuestion.id,
+          switchedToCategory: questionType.id,
+          wasAutoCleared: true
+        });
+      }
+      setCustomQuestion(''); // 清空自定义问题
+    }
+    
     setSelectedQuestion(questionType);
+    
+    // 如果第一次选择这个类型，追踪展示了问题输入框
+    if (!showQuestionInput) {
+      setShowQuestionInput(true);
+      trackUserAction('question_input_shown', {
+        questionType: questionType.id,
+        timeToShow: timeOnPage
+      });
+    }
   };
 
-  // 开始选牌流程
+  // 开始选卡流程 - 完整版本
   const startCardSelection = () => {
     const timeOnPage = Date.now() - pageStartTime;
+    const customQuestionText = customQuestion.trim();
+    const hasCustomQuestion = customQuestionText.length > 0;
     
+    // 确定最终使用的问题
+    const finalQuestion = hasCustomQuestion ? customQuestionText : (selectedQuestion?.question || 'What guidance do I need?');
+    
+    // 分析自定义问题质量
+    const questionAnalysis = analyzeCustomQuestion(customQuestionText);
+    
+    // 详细追踪开始选卡
     trackUserAction(EVENTS.CARD_SELECTION_START, {
       planType: selectedPlan?.id,
       questionType: selectedQuestion?.id,
-      requiredCards: selectedPlan?.cards || 1,
-      questionSelectionTime: timeOnPage
+      hasCustomQuestion: hasCustomQuestion,
+      questionAnalysis: questionAnalysis,
+      finalQuestion: finalQuestion,
+      questionMetrics: {
+        customQuestionLength: customQuestionText.length,
+        wordCount: customQuestionText.split(' ').length,
+        hasPersonalPronouns: /\b(I|my|me|myself)\b/i.test(customQuestionText),
+        hasQuestionWords: /\b(should|how|what|why|when|where|can|will)\b/i.test(customQuestionText),
+        isSpecific: questionAnalysis.isSpecific
+      },
+      userJourney: {
+        requiredCards: selectedPlan?.cards || 1,
+        questionSelectionTime: timeOnPage,
+        timeFromLanding: Date.now() - pageStartTime,
+        planSelectedFirst: selectedPlan?.id
+      }
+    });
+
+    // 如果用户输入了自定义问题，单独追踪
+    if (hasCustomQuestion) {
+      trackUserAction(EVENTS.CUSTOM_QUESTION_ENTERED, {
+        questionType: selectedQuestion?.id,
+        questionLength: customQuestionText.length,
+        wordCount: customQuestionText.split(' ').length,
+        quality: questionAnalysis.quality,
+        isSpecific: questionAnalysis.isSpecific,
+        personalizedLevel: questionAnalysis.personalizedLevel,
+        timeToComplete: timeOnPage,
+        category: selectedQuestion?.id
+      });
+    }
+
+    // 保存最终问题到状态（用于后续AI调用）
+    setSelectedQuestion({
+      ...selectedQuestion,
+      finalQuestion: finalQuestion,
+      isCustom: hasCustomQuestion,
+      questionAnalysis: questionAnalysis
     });
 
     setCurrentPage(3);
-    setCardSelectionPhase('waiting'); // 新增等待阶段
+    setCardSelectionPhase('waiting');
+  };
+
+  // 辅助函数：分析自定义问题质量
+  const analyzeCustomQuestion = (question) => {
+    if (!question || question.length === 0) {
+      return {
+        quality: 'none',
+        isSpecific: false,
+        personalizedLevel: 'generic',
+        wordCount: 0
+      };
+    }
+    
+    const wordCount = question.split(' ').length;
+    const hasPersonalPronouns = /\b(I|my|me|myself)\b/i.test(question);
+    const hasQuestionWords = /\b(should|how|what|why|when|where|can|will)\b/i.test(question);
+    const hasSpecificDetails = wordCount > 8 && (hasPersonalPronouns || question.includes('?'));
+    
+    let quality = 'basic';
+    let personalizedLevel = 'generic';
+    
+    if (wordCount > 15 && hasPersonalPronouns && hasQuestionWords) {
+      quality = 'excellent';
+      personalizedLevel = 'highly_personal';
+    } else if (wordCount > 8 && (hasPersonalPronouns || hasQuestionWords)) {
+      quality = 'good';
+      personalizedLevel = 'somewhat_personal';
+    } else if (wordCount > 5) {
+      quality = 'basic';
+      personalizedLevel = 'slightly_personal';
+    }
+    
+    return {
+      quality,
+      isSpecific: hasSpecificDetails,
+      personalizedLevel,
+      wordCount,
+      hasPersonalPronouns,
+      hasQuestionWords,
+      length: question.length
+    };
   };
 
   // 手动洗牌
@@ -648,51 +781,203 @@ const ArcaneCards = () => {
     }, 1500);
   };
 
-  // 生成并显示解读
+  // 生成并显示解读 - 完整版本
   const generateAndShowReading = async (cards) => {
     const readingStartTime = Date.now();
+    const finalQuestion = selectedQuestion?.finalQuestion || selectedQuestion?.question || 'What guidance do I need?';
+    const isCustomQuestion = selectedQuestion?.isCustom || false;
+    const questionAnalysis = selectedQuestion?.questionAnalysis || {};
     
+    // 追踪解读生成开始
     trackUserAction(EVENTS.READING_GENERATION_START, {
       planType: selectedPlan?.id,
       questionType: selectedQuestion?.id,
-      selectedCards: cards.map(c => c.name),
-      readingMethod: 'local_algorithm'
+      selectedCards: cards.map(c => ({
+        name: c.name,
+        element: c.element,
+        upright: c.upright
+      })),
+      readingMethod: 'attempting_ai',
+      questionContext: {
+        isCustomQuestion: isCustomQuestion,
+        questionLength: finalQuestion.length,
+        questionQuality: questionAnalysis.quality,
+        personalizedLevel: questionAnalysis.personalizedLevel,
+        hasPersonalPronouns: questionAnalysis.hasPersonalPronouns,
+        wordCount: questionAnalysis.wordCount
+      },
+      userJourney: {
+        totalSelectionTime: Date.now() - pageStartTime,
+        cardSelectionTime: readingStartTime - pageStartTime
+      }
     });
+    
+    // 追踪问题类型使用（自定义vs通用）
+    if (isCustomQuestion) {
+      trackUserAction(EVENTS.SPECIFIC_QUESTION_USED, {
+        questionLength: finalQuestion.length,
+        questionType: selectedQuestion?.id,
+        planType: selectedPlan?.id,
+        quality: questionAnalysis.quality,
+        personalizedLevel: questionAnalysis.personalizedLevel,
+        expectedBetterResults: questionAnalysis.quality === 'excellent'
+      });
+    } else {
+      trackUserAction(EVENTS.GENERIC_QUESTION_USED, {
+        defaultQuestion: finalQuestion,
+        questionType: selectedQuestion?.id,
+        planType: selectedPlan?.id,
+        userSkippedCustomInput: customQuestion.length === 0
+      });
+    }
 
     try {
-      const questionText = selectedQuestion?.question;
-      const result = generateReading(cards, questionText, selectedPlan?.id);
+      const result = await generateReading(cards, finalQuestion, selectedPlan?.id);
       
       setReadingResult(result);
       
-      trackUserAction(EVENTS.READING_GENERATED, {
+      // 成功生成解读的详细追踪
+      trackUserAction(EVENTS.READING_COMPLETED, {
         planType: selectedPlan?.id,
         questionType: selectedQuestion?.id,
-        generationTime: Date.now() - readingStartTime,
-        readingLength: result.reading?.length || 0,
-        keyInsightLength: result.keyInsight?.length || 0,
-        readingMethod: 'local_algorithm'
+        isCustomQuestion: isCustomQuestion,
+        questionMetrics: {
+          questionLength: finalQuestion.length,
+          questionQuality: questionAnalysis.quality,
+          personalizedLevel: questionAnalysis.personalizedLevel,
+          wordCount: questionAnalysis.wordCount
+        },
+        readingMetrics: {
+          cardName: cards[0]?.name,
+          cardElement: cards[0]?.element,
+          cardUpright: cards[0]?.upright,
+          readingSource: result.source,
+          provider: result.provider,
+          readingLength: result.reading?.length || 0,
+          keyInsightLength: result.keyInsight?.length || 0,
+          generationTime: Date.now() - readingStartTime,
+          wasAIUsed: result.source === 'ai'
+        },
+        userExperience: {
+          timeFromStart: Date.now() - pageStartTime,
+          expectedPersonalization: isCustomQuestion ? 'high' : 'medium'
+        }
       });
+      
+      // 如果使用了AI且是自定义问题，单独追踪AI个性化成功
+      if (result.source === 'ai' && isCustomQuestion) {
+        trackUserAction('ai_personalized_reading_success', {
+          questionQuality: questionAnalysis.quality,
+          readingLength: result.reading?.length,
+          generationTime: Date.now() - readingStartTime,
+          personalizedLevel: questionAnalysis.personalizedLevel
+        });
+      }
 
       setCurrentPage(4);
       
       // 标记已完成免费解读
       if (selectedPlan?.id === 'quick') {
         setHasCompletedFreeReading(true);
+        
+        // 追踪免费解读完成
+        trackUserAction('free_reading_completed', {
+          isCustomQuestion: isCustomQuestion,
+          questionQuality: questionAnalysis.quality,
+          readingSource: result.source,
+          userSatisfactionExpected: questionAnalysis.quality === 'excellent' ? 'high' : 'medium'
+        });
       }
       
     } catch (error) {
+      console.error('Reading generation error:', error);
+      
       trackUserAction(EVENTS.ERROR_OCCURRED, {
         errorType: 'reading_generation_failed',
         errorMessage: error.message,
-        planType: selectedPlan?.id
+        planType: selectedPlan?.id,
+        isCustomQuestion: isCustomQuestion,
+        questionLength: finalQuestion.length,
+        stage: 'generate_and_show_reading',
+        fallbackAvailable: true,
+        userImpact: 'high'
+      });
+      
+      // 如果是自定义问题且失败，特别追踪
+      if (isCustomQuestion) {
+        trackUserAction('custom_question_reading_failed', {
+          questionQuality: questionAnalysis.quality,
+          questionLength: finalQuestion.length,
+          errorType: error.message,
+          willRetryWithGeneric: false
+        });
+      }
+    }
+  };
+
+  // 添加到组件中，用于追踪问题输入行为
+  const handleCustomQuestionChange = (e) => {
+    const newQuestion = e.target.value;
+    const oldLength = customQuestion.length;
+    const newLength = newQuestion.length;
+    
+    setCustomQuestion(newQuestion);
+    
+    // 追踪重要的输入里程碑
+    if (oldLength === 0 && newLength > 0) {
+      // 开始输入
+      trackUserAction('custom_question_input_started', {
+        questionType: selectedQuestion?.id,
+        timeFromSelection: Date.now() - pageStartTime
+      });
+    } else if (oldLength > 0 && newLength === 0) {
+      // 清空输入
+      trackUserAction(EVENTS.CUSTOM_QUESTION_CLEARED, {
+        clearedQuestionLength: oldLength,
+        questionType: selectedQuestion?.id,
+        wasManualClear: true
+      });
+    } else if (newLength === 10 || newLength === 25 || newLength === 50) {
+      // 输入长度里程碑
+      trackUserAction('custom_question_milestone', {
+        questionLength: newLength,
+        questionType: selectedQuestion?.id,
+        milestone: `${newLength}_characters`
+      });
+    }
+  };
+
+  // 焦点追踪
+  const handleQuestionInputFocus = () => {
+    setQuestionInputFocused(true);
+    trackUserAction(EVENTS.QUESTION_INPUT_FOCUSED, {
+      questionType: selectedQuestion?.id,
+      currentQuestionLength: customQuestion.length,
+      timeFromSelection: Date.now() - pageStartTime
+    });
+  };
+
+  const handleQuestionInputBlur = () => {
+    setQuestionInputFocused(false);
+    const questionLength = customQuestion.trim().length;
+    
+    if (questionLength > 0) {
+      const analysis = analyzeCustomQuestion(customQuestion.trim());
+      trackUserAction('custom_question_input_completed', {
+        questionType: selectedQuestion?.id,
+        questionLength: questionLength,
+        wordCount: analysis.wordCount,
+        quality: analysis.quality,
+        timeSpentTyping: Date.now() - pageStartTime,
+        isSpecific: analysis.isSpecific
       });
     }
   };
 
   // 增强版AI解读生成
   // 增强版AI解读生成系统
-  const generateReading = (cards, question, planType) => {
+  const generateLocalReading = (cards, question, planType) => {
+    // 保持你现有的完整本地算法不变
     if (!cards || cards.length === 0) {
       return {
         reading: "The cards are still revealing themselves to you. Please select your cards first.",
@@ -1141,6 +1426,99 @@ const ArcaneCards = () => {
     }
 
     return { reading, keyInsight };
+  };
+
+  // 新的AI优先的解读生成函数
+  const generateReading = async (cards, question, planType) => {
+    const readingStartTime = Date.now();
+    
+    // 开始追踪
+    trackUserAction(EVENTS.READING_GENERATION_START, {
+      planType,
+      questionType: selectedQuestion?.id,
+      selectedCards: cards.map(c => c.name),
+      readingMethod: 'attempting_ai',
+      cardCount: cards.length
+    });
+
+    // 首先尝试AI API
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), API_CONFIG.timeout);
+      
+      const response = await fetch('/api/ai-reading/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          cards: cards,
+          question: question,
+          planType: planType
+        }),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      if (response.ok) {
+        const aiResult = await response.json();
+        
+        // AI成功追踪
+        trackUserAction(EVENTS.READING_GENERATED, {
+          planType,
+          questionType: selectedQuestion?.id,
+          generationTime: Date.now() - readingStartTime,
+          readingMethod: 'ai_success',
+          provider: aiResult.provider,
+          readingLength: aiResult.reading?.length || 0,
+          keyInsightLength: aiResult.keyInsight?.length || 0
+        });
+        
+        return {
+          reading: aiResult.reading,
+          keyInsight: aiResult.keyInsight,
+          source: 'ai',
+          provider: aiResult.provider
+        };
+        
+      } else {
+        // API返回错误状态
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(`API returned ${response.status}: ${errorData.message || 'Unknown error'}`);
+      }
+      
+    } catch (error) {
+      // AI失败，降级到本地算法
+      console.log('AI API failed, using local algorithm:', error.message);
+      
+      trackUserAction(EVENTS.READING_GENERATED, {
+        planType,
+        questionType: selectedQuestion?.id,
+        generationTime: Date.now() - readingStartTime,
+        readingMethod: 'local_fallback',
+        fallbackReason: error.name === 'AbortError' ? 'timeout' : 'api_error',
+        errorMessage: error.message,
+        readingLength: 0 // 将在本地算法中更新
+      });
+      
+      // 使用本地算法
+      const localResult = generateLocalReading(cards, question, planType);
+      
+      // 更新追踪信息
+      trackUserAction('local_reading_generated', {
+        planType,
+        readingLength: localResult.reading?.length || 0,
+        keyInsightLength: localResult.keyInsight?.length || 0,
+        source: 'local_algorithm'
+      });
+      
+      return {
+        ...localResult,
+        source: 'local',
+        fallbackReason: error.message
+      };
+    }
   };
 
   // 生成个性化的关键洞察
@@ -1771,7 +2149,7 @@ const ArcaneCards = () => {
           </motion.div>
         </motion.div>
 
-        {/* 页面2: 问题选择 */}
+        {/* 页面2: 问题选择 + 具体问题输入 */}
         <motion.div 
           className="absolute inset-0 p-4"
           animate={{ 
@@ -1788,10 +2166,15 @@ const ArcaneCards = () => {
             }}
             transition={{ delay: currentPage === 2 ? 0.1 : 0, duration: 0.4 }}
           >
-            <h2 className="text-2xl sm:text-3xl font-bold mb-4 text-amber-100">What calls to your soul?</h2>
-            <p className="text-sm opacity-70 font-serif">Choose the realm you wish to explore</p>
+            <h2 className="text-2xl sm:text-3xl font-bold mb-4 text-amber-100">
+              What's on your mind today?
+            </h2>
+            <p className="text-sm opacity-70 font-serif">
+              Choose your focus area, then share more details
+            </p>
           </motion.div>
           
+          {/* 问题分类选择 */}
           <div className="grid grid-cols-2 gap-3 max-w-sm mx-auto mb-6">
             {questionTypes.map((type, index) => {
               const IconComponent = type.icon;
@@ -1823,13 +2206,93 @@ const ArcaneCards = () => {
                   <div className="text-center">
                     <IconComponent className="w-6 h-6 sm:w-8 sm:h-8 mx-auto mb-2 filter drop-shadow-lg" />
                     <h3 className="font-bold text-xs sm:text-sm mb-1">{type.title}</h3>
-                    <p className="text-xs opacity-70 font-serif">{type.question.slice(0, 15)}...</p>
                   </div>
                 </motion.div>
               );
             })}
           </div>
+
+          {/* 具体问题输入区域 */}
+          {selectedQuestion && (
+            <motion.div 
+              className="max-w-md mx-auto mb-6"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2, duration: 0.4 }}
+            >
+              <div className="bg-black/20 backdrop-blur-sm rounded-2xl p-4 border border-purple-500/20">
+                <div className="text-center mb-4">
+                  <h4 className="font-semibold text-amber-200 mb-2">
+                    ✨ Share more details (Optional but recommended)
+                  </h4>
+                  
+                  {/* 根据选择的分类显示不同的引导示例 */}
+                  <div className="text-xs text-gray-300 mb-3">
+                    {selectedQuestion.id === 'love' && (
+                      <div>
+                        <p className="mb-1">💕 <em>Examples:</em></p>
+                        <p>"How can I improve my relationship?"</p>
+                        <p>"Am I ready for love?"</p>
+                      </div>
+                    )}
+                    {selectedQuestion.id === 'career' && (
+                      <div>
+                        <p className="mb-1">💼 <em>Examples:</em></p>
+                        <p>"Should I take this job offer?"</p>
+                        <p>"How can I advance my career?"</p>
+                      </div>
+                    )}
+                    {selectedQuestion.id === 'growth' && (
+                      <div>
+                        <p className="mb-1">🌱 <em>Examples:</em></p>
+                        <p>"What's blocking my confidence?"</p>
+                        <p>"How can I overcome this challenge?"</p>
+                      </div>
+                    )}
+                    {selectedQuestion.id === 'spiritual' && (
+                      <div>
+                        <p className="mb-1">✨ <em>Examples:</em></p>
+                        <p>"What is my life purpose?"</p>
+                        <p>"How can I find inner peace?"</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* 问题输入框 */}
+                <div className="relative">
+                  <textarea
+                    value={customQuestion}
+                    onChange={(e) => setCustomQuestion(e.target.value)}
+                    onFocus={() => setQuestionInputFocused(true)}
+                    onBlur={() => setQuestionInputFocused(false)}
+                    placeholder={`Share your specific ${selectedQuestion.title.toLowerCase()} question...`}
+                    className="w-full bg-black/30 border border-amber-500/30 rounded-xl p-3 text-white placeholder-gray-400 resize-none focus:border-amber-500/60 focus:outline-none transition-colors"
+                    rows="3"
+                    maxLength="200"
+                  />
+                  
+                  {/* 字数提示 */}
+                  <div className="absolute bottom-2 right-2 text-xs text-gray-500">
+                    {customQuestion.length}/200
+                  </div>
+                </div>
+
+                {/* 鼓励提示 */}
+                <motion.p 
+                  className="text-xs text-amber-200/80 mt-2 text-center"
+                  animate={{ opacity: customQuestion.length > 0 ? 1 : 0.6 }}
+                >
+                  {customQuestion.length > 0 
+                    ? "Perfect! The cards will respond to your clear intention ✨" 
+                    : "More specific questions get more personalized insights 🔮"
+                  }
+                </motion.p>
+              </div>
+            </motion.div>
+          )}
           
+          {/* 继续按钮 */}
           {selectedQuestion && (
             <motion.div 
               className="text-center"
@@ -1847,6 +2310,10 @@ const ArcaneCards = () => {
               >
                 Continue <ArrowRight className="ml-2 w-3 h-3 sm:w-4 sm:h-4" />
               </motion.button>
+              
+              <p className="text-xs text-gray-400 mt-2">
+                {customQuestion.length > 0 ? "Ready for your personalized reading" : "Using general guidance for this topic"}
+              </p>
             </motion.div>
           )}
         </motion.div>
@@ -1895,6 +2362,23 @@ const ArcaneCards = () => {
               }}
               transition={{ duration: 0.4 }}
             >
+              {/* 显示用户的具体问题 */}
+              {selectedQuestion?.finalQuestion && (
+                <motion.div 
+                  className="mb-8 max-w-sm mx-auto"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
+                >
+                  <div className="bg-black/20 backdrop-blur-sm rounded-xl p-4 border border-amber-500/20">
+                    <p className="text-xs text-amber-300 mb-2">Your Question:</p>
+                    <p className="text-sm text-white font-serif italic">
+                      "{selectedQuestion.finalQuestion}"
+                    </p>
+                  </div>
+                </motion.div>
+              )}
+
               <motion.div
                 className="w-20 h-32 mx-auto bg-gradient-to-br from-purple-900 to-purple-800 rounded-lg border border-amber-500/30 mb-8 overflow-hidden"
                 whileHover={{ scale: 1.05 }}
@@ -1905,43 +2389,7 @@ const ArcaneCards = () => {
                   boxShadow: { duration: 2, repeat: Infinity, ease: "easeInOut" }
                 }}
               >
-                {/* 使用新的卡牌背面设计 */}
-                <svg className="w-full h-full" viewBox="0 0 70 110" xmlns="http://www.w3.org/2000/svg">
-                  <defs>
-                    <radialGradient id="waitingBackgroundGradient" cx="50%" cy="50%" r="80%">
-                      <stop offset="0%" style={{stopColor:'#1a0033', stopOpacity:1}} />
-                      <stop offset="50%" style={{stopColor:'#0f0027', stopOpacity:1}} />
-                      <stop offset="100%" style={{stopColor:'#000015', stopOpacity:1}} />
-                    </radialGradient>
-                    
-                    <linearGradient id="waitingGoldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                      <stop offset="0%" style={{stopColor:'#FFD700', stopOpacity:1}} />
-                      <stop offset="50%" style={{stopColor:'#F4D03F', stopOpacity:1}} />
-                      <stop offset="100%" style={{stopColor:'#B8860B', stopOpacity:1}} />
-                    </linearGradient>
-                  </defs>
-                  
-                  {/* 背景 */}
-                  <rect width="70" height="110" fill="url(#waitingBackgroundGradient)" rx="8"/>
-                  
-                  {/* 外边框 */}
-                  <rect x="2" y="2" width="66" height="106" fill="none" stroke="url(#waitingGoldGradient)" strokeWidth="0.8" rx="6"/>
-                  
-                  {/* 中央主图案 */}
-                  <g transform="translate(35,55)">
-                    <circle r="20" fill="none" stroke="url(#waitingGoldGradient)" strokeWidth="0.6" opacity="0.6"/>
-                    <circle r="11" fill="url(#waitingGoldGradient)" opacity="0.1"/>
-                    <circle r="9" fill="none" stroke="url(#waitingGoldGradient)" strokeWidth="0.6"/>
-                    
-                    {/* 全视之眼 */}
-                    <g opacity="0.8">
-                      <polygon points="0,-6 -5,3 5,3" fill="none" stroke="url(#waitingGoldGradient)" strokeWidth="0.6"/>
-                      <ellipse cx="0" cy="-1" rx="3" ry="1.5" fill="url(#waitingGoldGradient)" opacity="0.7"/>
-                      <circle cx="0" cy="-1" r="1" fill="#1a0033"/>
-                      <circle cx="0" cy="-1" r="0.5" fill="url(#waitingGoldGradient)"/>
-                    </g>
-                  </g>
-                </svg>
+                {/* 现有的卡牌背面设计 */}
               </motion.div>
               
               <motion.button
@@ -1962,7 +2410,7 @@ const ArcaneCards = () => {
               </motion.button>
               
               <p className="text-amber-200/60 font-serif mt-4 text-sm">
-                Let the universe guide your choice...
+                Focus on your question as you shuffle...
               </p>
             </motion.div>
           )}
