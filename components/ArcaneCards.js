@@ -6,8 +6,10 @@ import { Heart, Briefcase, Sprout, Sparkles, Star, ArrowRight, Share2, Save } fr
 import { EVENTS } from '../lib/constants/events';
 import { tracker } from '../lib/utils/tracking';
 
+
 const ArcaneCards = () => {
   // ✅ 临时替换追踪函数 - 简单的控制台日志
+
   const trackUserAction = (eventName, data = {}) => {
     tracker.track(eventName, data);
   };
@@ -17,19 +19,51 @@ const ArcaneCards = () => {
   };
 
   const API_CONFIG = {
-    timeout: 8000, // 8秒超时
+    timeout: 25000, // 25秒超时
     retries: 2,
     baseURL: process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : ''
   };
   
   const [currentPage, setCurrentPage] = useState(1);
-  const [selectedPlan, setSelectedPlan] = useState(null);
   const [selectedQuestion, setSelectedQuestion] = useState(null);
   const [selectedCards, setSelectedCards] = useState([]);
   const [shuffledDeck, setShuffledDeck] = useState([]);
   const [customQuestion, setCustomQuestion] = useState('');
   const [showQuestionInput, setShowQuestionInput] = useState(false);
   const [questionInputFocused, setQuestionInputFocused] = useState(false);
+  const [selectedEmotion, setSelectedEmotion] = useState(null);
+  const [selectedScenario, setSelectedScenario] = useState(null);
+  const [currentStage, setCurrentStage] = useState(1);
+  const ShuffleText = () => {
+    const [textIndex, setTextIndex] = useState(0);
+    const texts = [
+      "The cards are choosing their moment...",
+      "Ancient wisdom awakens...",
+      "Cosmic energy flows through the deck...",
+      "Your destiny is being woven..."
+    ];
+    
+    useEffect(() => {
+      const interval = setInterval(() => {
+        setTextIndex(prev => (prev + 1) % texts.length);
+      }, 700);
+      return () => clearInterval(interval);
+    }, []);
+    
+    return (
+      <motion.p 
+        key={textIndex}
+        className="text-amber-200 font-serif text-sm"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -10 }}
+        transition={{ duration: 0.3 }}
+      >
+        {texts[textIndex]}
+      </motion.p>
+    );
+  };
+
   
   const handleEmailCollection = (email, planId) => {
     trackUserAction('email_provided', {
@@ -47,7 +81,7 @@ const ArcaneCards = () => {
     trackUserAction('reading_completed', {
       question_text: selectedQuestion?.question,
       question_category: selectedQuestion?.id,
-      plan_id: selectedPlan?.id,
+      plan_id: 'quick',
       card_name: cards[0]?.name,
       card_upright: cards[0]?.upright,
       ai_reading: reading.reading,
@@ -60,7 +94,7 @@ const ArcaneCards = () => {
     trackUserAction('rating_given', {
       rating: rating,
       user_feedback: feedback,
-      plan_id: selectedPlan?.id,
+      plan_id: 'quick',
       card_name: selectedCards[0]?.name,
       question_category: selectedQuestion?.id,
       time_to_rate: Date.now() - pageStartTime,
@@ -135,69 +169,90 @@ const ArcaneCards = () => {
     'The World': { symbol: '🌍', accent: '🎉', color: 'from-green-400 to-blue-500' }
   };
 
-  const questionTypes = [
-    { 
-      id: 'love', 
-      icon: Heart, 
-      title: 'Love & Relations', 
-      question: 'What do I need to know about my love life?',
-      color: 'from-pink-500 to-red-500'
+  const emotionalStates = [
+    {
+      id: 'uncertain',
+      emoji: '😰', 
+      title: "I'm feeling uncertain",
+      subtitle: "Something feels unclear in my life",
+      color: 'from-blue-500 to-indigo-500',
+      scenarios: [
+        { id: 'relationships', emoji: '💔', title: 'About my relationships', question: 'What do I need to know about my love life?' },
+        { id: 'career', emoji: '💼', title: 'About my career path', question: 'What direction should my career take?' },
+        { id: 'direction', emoji: '🌱', title: 'About my life direction', question: 'What path should I choose in life?' },
+        { id: 'purpose', emoji: '⭐', title: 'About my purpose', question: 'What is my true calling in life?' }
+      ]
     },
-    { 
-      id: 'career', 
-      icon: Briefcase, 
-      title: 'Career & Money', 
-      question: 'What opportunities await me?',
-      color: 'from-green-500 to-emerald-500'
+    {
+      id: 'curious',
+      emoji: '💭',
+      title: "I'm curious about...",
+      subtitle: "I want to explore possibilities", 
+      color: 'from-purple-500 to-pink-500',
+      scenarios: [
+        { id: 'romantic_future', emoji: '❤️', title: 'My romantic future', question: 'What does love have in store for me?' },
+        { id: 'financial_path', emoji: '💰', title: 'My financial path', question: 'What opportunities await me financially?' },
+        { id: 'hidden_potential', emoji: '🎯', title: 'My hidden potential', question: 'What talents should I develop?' },
+        { id: 'whats_next', emoji: '🌟', title: "What's coming next", question: 'What should I expect in the near future?' }
+      ]
     },
-    { 
-      id: 'growth', 
-      icon: Sprout, 
-      title: 'Personal Growth', 
-      question: 'How can I unlock my potential?',
-      color: 'from-blue-500 to-cyan-500'
+    {
+      id: 'bothered',
+      emoji: '😤',
+      title: "Something's bothering me", 
+      subtitle: "I need clarity on a situation",
+      color: 'from-red-500 to-orange-500',
+      scenarios: [
+        { id: 'conflict', emoji: '💔', title: 'A relationship conflict', question: 'How can I resolve this relationship issue?' },
+        { id: 'decision', emoji: '🤔', title: 'A difficult decision', question: 'What should I consider in making this choice?' },
+        { id: 'obstacle', emoji: '🚧', title: 'An obstacle I face', question: 'How can I overcome this challenge?' },
+        { id: 'stress', emoji: '😟', title: 'Stress or anxiety', question: 'What can help me find peace right now?' }
+      ]
     },
-    { 
-      id: 'spiritual', 
-      icon: Sparkles, 
-      title: 'Spiritual Guidance', 
-      question: 'What message does the universe have for me?',
-      color: 'from-purple-500 to-indigo-500'
+    {
+      id: 'ready_for_change',
+      emoji: '✨',
+      title: "I'm ready for change",
+      subtitle: "I want to grow and transform",
+      color: 'from-green-500 to-emerald-500', 
+      scenarios: [
+        { id: 'self_improvement', emoji: '🌱', title: 'Personal growth', question: 'How can I become my best self?' },
+        { id: 'new_beginning', emoji: '🌅', title: 'A fresh start', question: 'How should I approach this new chapter?' },
+        { id: 'breaking_patterns', emoji: '🔓', title: 'Breaking old patterns', question: 'What habits should I change?' },
+        { id: 'manifestation', emoji: '✨', title: 'Manifesting my dreams', question: 'How can I turn my vision into reality?' }
+      ]
     }
   ];
 
-  const plans = [
-    {
-      id: 'quick',
-      title: 'Quick Insight',
-      subtitle: 'Single card guidance',
-      cards: 1,
-      price: 'FREE',
-      cta: 'START FREE',
-      cardEmojis: '⟐',
-      color: 'from-emerald-600 to-green-700'
-    },
-    {
-      id: 'deep',
-      title: 'AI Deep Reading',
-      subtitle: 'Past•Present•Future Analysis',
-      cards: 3,
-      price: '$2.99 TODAY',
-      cta: 'UNLOCK AI WISDOM',
-      cardEmojis: '⟐ ⟐ ⟐',
-      color: 'from-amber-600 to-orange-600'
-    },
-    {
-      id: 'full',
-      title: 'AI Master Analysis',
-      subtitle: 'Complete AI life guidance',
-      cards: 5,
-      price: '$4.99',
-      cta: 'MASTER AI READING',
-      cardEmojis: '⟐ ⟐ ⟐ ⟐ ⟐',
-      color: 'from-purple-600 to-pink-600'
+  const formatReading = (text) => {
+    if (!text) return ['Your reading is being prepared...'];
+    
+    // 如果AI已经用\n\n分段了
+    if (text.includes('\n\n')) {
+      return text.split('\n\n').filter(p => p.trim());
     }
-  ];
+    
+    // 如果没分段，按句号智能分段（fallback）
+    const sentences = text.split('. ');
+    const paragraphs = [];
+    let currentParagraph = '';
+    
+    sentences.forEach((sentence, index) => {
+      currentParagraph += sentence + (index < sentences.length - 1 ? '. ' : '');
+      
+      // 每2-3句成一段，最多3段
+      if ((index + 1) % 3 === 0 || index === sentences.length - 1) {
+        if (currentParagraph.trim()) {
+          paragraphs.push(currentParagraph.trim());
+          currentParagraph = '';
+        }
+      }
+    });
+    
+    // 确保至少有内容，最多3段
+    const result = paragraphs.filter(p => p.length > 0);
+    return result.length > 0 ? result.slice(0, 3) : [text];
+  };
 
   // 初始化追踪
   useEffect(() => {
@@ -229,7 +284,7 @@ const ArcaneCards = () => {
     
     if (pageName) {
       trackPageView(pageName, {
-        planSelected: selectedPlan?.id,
+        planSelected: 'quick', // 固定值
         questionSelected: selectedQuestion?.id,
         timeFromStart: Date.now() - pageStartTime
       });
@@ -237,7 +292,7 @@ const ArcaneCards = () => {
     
     // 重置页面开始时间
     setPageStartTime(Date.now());
-  }, [currentPage, selectedPlan, selectedQuestion]);
+  }, [currentPage, selectedQuestion]);
 
   // 初始化洗牌后的牌组
   useEffect(() => {
@@ -310,8 +365,8 @@ const ArcaneCards = () => {
       <motion.div
         className="relative cursor-pointer select-none rounded-xl overflow-hidden"
         style={{
-          width: '70px',
-          height: '110px',
+          width: '105px',
+          height: '190px',
         }}
         animate={{ 
           scale: isSelected ? 1.1 : 1,
@@ -520,132 +575,61 @@ const ArcaneCards = () => {
     );
   });
 
-  // 套餐选择处理
-  const handlePlanSelection = (plan) => {
-    const timeOnPage = Date.now() - pageStartTime;
-    
-    // 追踪点击行为
-    trackUserAction(EVENTS.PLAN_CLICKED, {
-      planId: plan.id,
-      planPrice: plan.price,
-      timeOnPage,
-      clickPosition: plan.id
-    });
 
-    if (plan.id === 'quick') {
-      setSelectedPlan(plan);
-      trackUserAction(EVENTS.PLAN_SELECTED, {
-        planId: plan.id,
-        selectionTime: timeOnPage,
-        planType: 'free'
-      });
-      setCurrentPage(2);
-    } else {
-      // 付费意愿追踪
-      trackUserAction(EVENTS.PAYMENT_BUTTON_CLICKED, {
-        planId: plan.id,
-        planPrice: plan.price,
-        userJourney: {
-          completedFreeReading: hasCompletedFreeReading,
-          userRating: userRating,
-          timeFromStart: Date.now() - pageStartTime
-        },
-        clickContext: 'landing_page'
-      });
-      
-      showPaymentIntentDialog(plan);
-    }
-  };
-
-  // 显示付费意愿收集弹窗
-  const showPaymentIntentDialog = (plan) => {
-    const userInterest = window.confirm(
-      `🔮 ${plan.title} Coming Soon!\n\nThank you for your interest! We're perfecting our AI features to ensure the most accurate reading experience.\n\nExpected launch in 1-2 weeks. Want to be the first to experience it?\n\nClick "OK" to join our waitlist, or "Cancel" to try the free version first.`
-    );
-
-    if (userInterest) {
-      const email = window.prompt('Please enter your email to be notified first:');
-      if (email && email.includes('@')) {
-        trackUserAction(EVENTS.EMAIL_PROVIDED, {
-          email: email,
-          planId: plan.id,
-          planPrice: plan.price,
-          collectionSource: 'payment_intent_dialog'
-        });
-        alert('Thank you! We\'ll notify you as soon as it\'s ready ✨');
-      } else if (email) {
-        alert('Please enter a valid email address');
-      }
-    } else {
-      trackUserAction(EVENTS.FALLBACK_TO_FREE, {
-        originalPlanId: plan.id,
-        reason: 'user_declined_waitlist'
-      });
-    }
-  };
 
   // 问题类型选择处理 - 完整版本
-  const handleQuestionSelection = (questionType) => {
-    const timeOnPage = Date.now() - pageStartTime;
-    const previousQuestion = selectedQuestion;
-    const hadCustomQuestion = customQuestion.trim().length > 0;
+  const handleEmotionSelection = (emotion) => {
+    setSelectedEmotion(emotion);
+    setSelectedScenario(null);
+    setCurrentStage(2);
     
-    // 详细追踪问题选择
-    trackUserAction(EVENTS.QUESTION_TYPE_SELECTED, {
-      questionType: questionType.id,
-      questionTitle: questionType.title,
-      defaultQuestion: questionType.question,
-      selectionTime: timeOnPage,
-      changedSelection: previousQuestion ? true : false,
-      previousQuestionType: previousQuestion?.id,
-      hadPreviousCustomQuestion: hadCustomQuestion,
-      previousCustomQuestionLength: customQuestion.trim().length,
-      userBehavior: {
-        isReselection: previousQuestion?.id === questionType.id,
-        isSwitchingCategory: previousQuestion && previousQuestion.id !== questionType.id
-      }
+    trackUserAction('emotion_selected', {
+      emotionId: emotion.id,
+      emotionTitle: emotion.title,
+      timeOnPage: Date.now() - pageStartTime
+    });
+  };
+
+  const handleScenarioSelection = (scenario) => {
+    setSelectedScenario(scenario);
+    setCurrentStage(3);
+    
+    // 构建问题对象
+    setSelectedQuestion({
+      id: `${selectedEmotion.id}_${scenario.id}`,
+      emotion: selectedEmotion,
+      scenario: scenario,
+      defaultQuestion: scenario.question,
+      finalQuestion: scenario.question
     });
     
-    // 如果切换了问题类型，处理自定义问题
-    if (previousQuestion && previousQuestion.id !== questionType.id) {
-      if (hadCustomQuestion) {
-        trackUserAction(EVENTS.CUSTOM_QUESTION_CLEARED, {
-          clearedQuestionLength: customQuestion.trim().length,
-          clearedFromCategory: previousQuestion.id,
-          switchedToCategory: questionType.id,
-          wasAutoCleared: true
-        });
-      }
-      setCustomQuestion(''); // 清空自定义问题
-    }
-    
-    setSelectedQuestion(questionType);
-    
-    // 如果第一次选择这个类型，追踪展示了问题输入框
-    if (!showQuestionInput) {
-      setShowQuestionInput(true);
-      trackUserAction('question_input_shown', {
-        questionType: questionType.id,
-        timeToShow: timeOnPage
-      });
-    }
+    trackUserAction('scenario_selected', {
+      emotionId: selectedEmotion.id,
+      scenarioId: scenario.id,
+      defaultQuestion: scenario.question
+    });
   };
 
   // 开始选卡流程 - 完整版本
   const startCardSelection = () => {
+    const finalQuestion = customQuestion.trim() || selectedScenario?.question || 'What guidance do I need?';
+  
+      setSelectedQuestion(prev => ({
+        ...prev,
+        finalQuestion: finalQuestion,
+        isCustom: customQuestion.trim().length > 0
+      }));
     const timeOnPage = Date.now() - pageStartTime;
     const customQuestionText = customQuestion.trim();
     const hasCustomQuestion = customQuestionText.length > 0;
     
-    // 确定最终使用的问题
-    const finalQuestion = hasCustomQuestion ? customQuestionText : (selectedQuestion?.question || 'What guidance do I need?');
     
     // 分析自定义问题质量
     const questionAnalysis = analyzeCustomQuestion(customQuestionText);
     
     // 详细追踪开始选卡
     trackUserAction(EVENTS.CARD_SELECTION_START, {
-      planType: selectedPlan?.id,
+      planType: 'quick',
       questionType: selectedQuestion?.id,
       hasCustomQuestion: hasCustomQuestion,
       questionAnalysis: questionAnalysis,
@@ -658,10 +642,10 @@ const ArcaneCards = () => {
         isSpecific: questionAnalysis.isSpecific
       },
       userJourney: {
-        requiredCards: selectedPlan?.cards || 1,
+        requiredCards: 1,
         questionSelectionTime: timeOnPage,
         timeFromLanding: Date.now() - pageStartTime,
-        planSelectedFirst: selectedPlan?.id
+        planSelectedFirst: 'quick'
       }
     });
 
@@ -736,7 +720,7 @@ const ArcaneCards = () => {
   const startShuffling = () => {
     setCardSelectionPhase('shuffling');
     trackUserAction(EVENTS.CARDS_SHUFFLING, {
-      planType: selectedPlan?.id
+      planType: 'quick'
     });
     
     // 洗牌动画持续2-3秒
@@ -778,7 +762,7 @@ const ArcaneCards = () => {
         upright: c.upright
       })),
       totalSelectionTime: Date.now() - pageStartTime,
-      planType: selectedPlan?.id
+      planType: 'quick'
     });
 
     setCardSelectionPhase('completing');
@@ -802,7 +786,7 @@ const ArcaneCards = () => {
     
     // 追踪解读生成开始
     trackUserAction(EVENTS.READING_GENERATION_START, {
-      planType: selectedPlan?.id,
+      planType: 'quick',
       questionType: selectedQuestion?.id,
       selectedCards: cards.map(c => ({
         name: c.name,
@@ -829,7 +813,7 @@ const ArcaneCards = () => {
       trackUserAction(EVENTS.SPECIFIC_QUESTION_USED, {
         questionLength: finalQuestion.length,
         questionType: selectedQuestion?.id,
-        planType: selectedPlan?.id,
+        planType: 'quick',
         quality: questionAnalysis.quality,
         personalizedLevel: questionAnalysis.personalizedLevel,
         expectedBetterResults: questionAnalysis.quality === 'excellent'
@@ -838,19 +822,19 @@ const ArcaneCards = () => {
       trackUserAction(EVENTS.GENERIC_QUESTION_USED, {
         defaultQuestion: finalQuestion,
         questionType: selectedQuestion?.id,
-        planType: selectedPlan?.id,
+        planType: 'quick',
         userSkippedCustomInput: customQuestion.length === 0
       });
     }
 
     try {
-      const result = await generateReading(cards, finalQuestion, selectedPlan?.id);
+      const result = await generateReading(cards, finalQuestion, 'quick');
       
       setReadingResult(result);
       
       // 成功生成解读的详细追踪
       trackUserAction(EVENTS.READING_COMPLETED, {
-        planType: selectedPlan?.id,
+        planType: 'quick',
         questionType: selectedQuestion?.id,
         isCustomQuestion: isCustomQuestion,
         questionMetrics: {
@@ -889,17 +873,13 @@ const ArcaneCards = () => {
       setCurrentPage(4);
       
       // 标记已完成免费解读
-      if (selectedPlan?.id === 'quick') {
-        setHasCompletedFreeReading(true);
-        
-        // 追踪免费解读完成
-        trackUserAction('free_reading_completed', {
-          isCustomQuestion: isCustomQuestion,
-          questionQuality: questionAnalysis.quality,
-          readingSource: result.source,
-          userSatisfactionExpected: questionAnalysis.quality === 'excellent' ? 'high' : 'medium'
-        });
-      }
+      setHasCompletedFreeReading(true);
+      trackUserAction('free_reading_completed', {
+        isCustomQuestion: isCustomQuestion,
+        questionQuality: questionAnalysis.quality,
+        readingSource: result.source,
+        userSatisfactionExpected: questionAnalysis.quality === 'excellent' ? 'high' : 'medium'
+      });
       
     } catch (error) {
       console.error('Reading generation error:', error);
@@ -907,7 +887,7 @@ const ArcaneCards = () => {
       trackUserAction(EVENTS.ERROR_OCCURRED, {
         errorType: 'reading_generation_failed',
         errorMessage: error.message,
-        planType: selectedPlan?.id,
+        planType: 'quick',
         isCustomQuestion: isCustomQuestion,
         questionLength: finalQuestion.length,
         stage: 'generate_and_show_reading',
@@ -986,7 +966,6 @@ const ArcaneCards = () => {
     }
   };
 
-  // 增强版AI解读生成
   // 增强版AI解读生成系统
   const generateLocalReading = (cards, question, planType) => {
     // 保持你现有的完整本地算法不变
@@ -1440,88 +1419,100 @@ const ArcaneCards = () => {
     return { reading, keyInsight };
   };
 
-  // 新的AI优先的解读生成函数
-  const generateReading = async (cards, question, planType) => {
-    const readingStartTime = Date.now();
-    
-    // 开始追踪
-    trackUserAction(EVENTS.READING_GENERATION_START, {
-      planType,
-      questionType: selectedQuestion?.id,
-      selectedCards: cards.map(c => c.name),
-      readingMethod: 'attempting_ai',
-      cardCount: cards.length
-    });
+  // 在 ArcaneCards.js 中替换整个 generateReading 函数
 
-    // 首先尝试AI API
+  const generateReading = async (cards, question) => {
+    const planType = 'quick'; // 固定值
+    console.log('🔥 NEW SIMPLIFIED VERSION CALLED!'); // 确认新版本
+    console.log('📥 Input params:', { cards: cards.length, question, planType });
+    
+    const readingStartTime = Date.now();
+    const finalQuestion = selectedQuestion?.finalQuestion || selectedQuestion?.question || 'What guidance do I need?';
+    
+    // 追踪解读生成开始
+    trackUserAction(EVENTS.READING_GENERATION_START, {
+      planType: planType,
+      questionType: selectedQuestion?.id,
+      selectedCards: cards.map(c => ({ name: c.name, element: c.element, upright: c.upright })),
+      readingMethod: 'attempting_ai'
+    });
+    
+    // 尝试AI API - 简化版本
     try {
+      console.log('🚀 Calling AI API...');
+      console.log('📤 Request payload:', { cards, question: finalQuestion, planType });
+      
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), API_CONFIG.timeout);
       
       const response = await fetch('/api/ai-reading/generate', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           cards: cards,
-          question: question,
+          question: finalQuestion,
           planType: planType
         }),
         signal: controller.signal
       });
 
       clearTimeout(timeoutId);
-
+      
+      console.log('📨 Response received:', { 
+        ok: response.ok, 
+        status: response.status,
+        statusText: response.statusText 
+      });
+      
       if (response.ok) {
         const aiResult = await response.json();
+        console.log('✅ AI JSON parsed:', aiResult); // 👈 关键！
+        console.log('✅ AI Success! Using AI content directly');
         
-        // AI成功追踪
+        // 追踪AI成功
         trackUserAction(EVENTS.READING_GENERATED, {
           planType,
           questionType: selectedQuestion?.id,
           generationTime: Date.now() - readingStartTime,
           readingMethod: 'ai_success',
-          provider: aiResult.provider,
-          readingLength: aiResult.reading?.length || 0,
-          keyInsightLength: aiResult.keyInsight?.length || 0
+          provider: aiResult.provider || 'deepseek',
+          readingLength: aiResult.reading?.length || 0
         });
         
+        // 直接返回AI结果，不做复杂验证
         return {
-          reading: aiResult.reading,
-          keyInsight: aiResult.keyInsight,
+          reading: aiResult.reading || aiResult.content || 'AI guidance received',
+          keyInsight: aiResult.keyInsight || 'Trust the journey ahead',
           source: 'ai',
-          provider: aiResult.provider
+          provider: aiResult.provider || 'deepseek'
         };
         
       } else {
-        // API返回错误状态
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(`API returned ${response.status}: ${errorData.message || 'Unknown error'}`);
+        // HTTP错误状态，降级
+        console.log(`⚠️ API returned ${response.status}, falling back to local`);
+        throw new Error(`API returned ${response.status}`);
       }
       
     } catch (error) {
-      // AI失败，降级到本地算法
-      console.log('AI API failed, using local algorithm:', error.message);
+      // 只有真正的网络/解析错误才降级
+      console.log('🔄 Network error, using local algorithm:', error.message);
       
+      // 追踪降级原因
       trackUserAction(EVENTS.READING_GENERATED, {
         planType,
         questionType: selectedQuestion?.id,
         generationTime: Date.now() - readingStartTime,
         readingMethod: 'local_fallback',
-        fallbackReason: error.name === 'AbortError' ? 'timeout' : 'api_error',
-        errorMessage: error.message,
-        readingLength: 0 // 将在本地算法中更新
+        fallbackReason: error.name === 'AbortError' ? 'timeout' : 'network_error',
+        errorMessage: error.message
       });
       
       // 使用本地算法
-      const localResult = generateLocalReading(cards, question, planType);
+      const localResult = generateLocalReading(cards, finalQuestion, planType);
       
-      // 更新追踪信息
       trackUserAction('local_reading_generated', {
         planType,
         readingLength: localResult.reading?.length || 0,
-        keyInsightLength: localResult.keyInsight?.length || 0,
         source: 'local_algorithm'
       });
       
@@ -2009,7 +2000,7 @@ const ArcaneCards = () => {
     
     trackUserAction(EVENTS.RATING_GIVEN, {
       rating,
-      planType: selectedPlan?.id,
+      planType: 'quick',
       questionType: selectedQuestion?.id,
       cardName: selectedCards[0]?.name,
       timeToRate: Date.now() - pageStartTime
@@ -2026,7 +2017,7 @@ const ArcaneCards = () => {
     
     trackUserAction(EVENTS.SHARE_CLICKED, {
       shareMethod: 'native_share',
-      planType: selectedPlan?.id,
+      planType: 'quick',
       userRating: userRating,
       cardName: selectedCards[0]?.name
     });
@@ -2061,7 +2052,8 @@ const ArcaneCards = () => {
         
         {/* 页面1: Landing页 */}
         <motion.div 
-          className="absolute inset-0 p-4 text-center"
+          className="absolute inset-0 flex flex-col justify-center items-center p-4 text-center"
+          // 使用 flex 布局让内容垂直居中
           animate={{ 
             opacity: currentPage === 1 ? 1 : 0,
             pointerEvents: currentPage === 1 ? 'auto' : 'none'
@@ -2069,7 +2061,7 @@ const ArcaneCards = () => {
           transition={{ duration: 0.3 }}
         >
           <motion.div 
-            className="mb-6 mt-8"
+            className="mb-8"
             animate={{ 
               y: currentPage === 1 ? 0 : -20,
               opacity: currentPage === 1 ? 1 : 0
@@ -2085,7 +2077,7 @@ const ArcaneCards = () => {
           </motion.div>
           
           <motion.div 
-            className="mb-6"
+            className="mb-16"
             animate={{ 
               opacity: currentPage === 1 ? 1 : 0
             }}
@@ -2096,59 +2088,55 @@ const ArcaneCards = () => {
             </p>
           </motion.div>
           
-          <div className="space-y-3 max-w-sm mx-auto">
-            {plans.map((plan, index) => (
-              <motion.div
-                key={plan.id}
-                className={`relative bg-gradient-to-r ${plan.color} p-4 sm:p-5 rounded-2xl shadow-2xl cursor-pointer border border-amber-500/20`}
-                animate={{ 
-                  y: currentPage === 1 ? 0 : 30,
-                  opacity: currentPage === 1 ? 1 : 0
-                }}
-                transition={{ 
-                  delay: currentPage === 1 ? 0.3 + index * 0.08 : 0,
-                  duration: 0.4,
-                  type: "spring",
-                  stiffness: 120
-                }}
-                whileHover={{ 
-                  scale: 1.02, 
-                  y: -2,
-                  transition: { type: "spring", stiffness: 400, damping: 30 }
-                }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => handlePlanSelection(plan)}
-              >
-                {/* AI标识 */}
-                {plan.id !== 'quick' && (
-                  <div className="absolute -top-2 -right-2 bg-gradient-to-r from-purple-500 to-purple-600 text-white text-xs px-2 py-1 rounded-full font-bold border-2 border-white shadow-lg">
-                    AI-Powered
-                  </div>
-                )}
-                
-                <div className="relative z-10">
-                  <div className="text-2xl sm:text-3xl mb-2 filter drop-shadow-lg">{plan.cardEmojis}</div>
-                  <h3 className="font-bold text-lg sm:text-xl mb-1">{plan.title}</h3>
-                  <p className="text-sm opacity-90 mb-2 font-serif">{plan.subtitle}</p>
-                  <div className="text-base sm:text-lg font-bold mb-3">
-                    {plan.price === 'FREE' ? (
-                      <span className="bg-emerald-500 text-white px-3 py-1 rounded-full text-sm font-bold shadow-lg">
-                        FREE
-                      </span>
-                    ) : (
-                      <span className="text-amber-200">{plan.price}</span>
-                    )}
-                  </div>
-                  <button className="bg-black/30 backdrop-blur-sm px-4 sm:px-6 py-2 sm:py-3 rounded-xl font-bold border border-white/20 shadow-lg text-sm sm:text-base">
-                    {plan.cta}
-                  </button>
-                </div>
-              </motion.div>
-            ))}
-          </div>
+          <motion.div 
+            className="mb-16"
+            animate={{ 
+              opacity: currentPage === 1 ? 1 : 0
+            }}
+            transition={{ delay: currentPage === 1 ? 0.3 : 0, duration: 0.4 }}
+          >
+            <motion.button
+              className="bg-gradient-to-r from-emerald-600 to-green-700 px-8 py-4 rounded-2xl font-bold text-white border border-emerald-500/30 shadow-2xl"
+              animate={{ 
+                y: currentPage === 1 ? 0 : 20,
+                opacity: currentPage === 1 ? 1 : 0
+              }}
+              transition={{ 
+                delay: currentPage === 1 ? 0.4 : 0,
+                duration: 0.4,
+                type: "spring",
+                stiffness: 120
+              }}
+              whileHover={{ 
+                scale: 1.05, 
+                y: -3,
+                boxShadow: "0 10px 30px rgba(16, 185, 129, 0.4)",
+                transition: { type: "spring", stiffness: 400, damping: 30 }
+              }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => {
+                trackUserAction(EVENTS.PLAN_SELECTED, {
+                  planId: 'quick',
+                  selectionTime: Date.now() - pageStartTime,
+                  planType: 'free'
+                });
+                setCurrentPage(2);
+              }}
+            >
+              ✨ BEGIN JOURNEY
+            </motion.button>
+            
+            <motion.p 
+              className="text-sm text-emerald-200/80 mt-3 font-serif"
+              animate={{ opacity: currentPage === 1 ? 1 : 0 }}
+              transition={{ delay: currentPage === 1 ? 0.5 : 0, duration: 0.4 }}
+            >
+              Free • No signup required • Instant insights
+            </motion.p>
+          </motion.div>
           
           <motion.div 
-            className="mt-6 flex items-center justify-center space-x-1"
+            className="mt-12 flex items-center justify-center space-x-1"
             animate={{ 
               opacity: currentPage === 1 ? 1 : 0
             }}
@@ -2159,9 +2147,21 @@ const ArcaneCards = () => {
             ))}
             <span className="ml-2 text-xs sm:text-sm opacity-80">50k+ satisfied users</span>
           </motion.div>
+
+          <motion.div 
+            className="mt-20 text-center opacity-20"
+            animate={{ 
+              opacity: currentPage === 1 ? 0.2 : 0
+            }}
+            transition={{ delay: currentPage === 1 ? 1.0 : 0, duration: 0.6 }}
+          >
+            <div className="text-amber-400/30 text-lg font-serif">
+              ✦ ✧ ✦ ✧ ✦
+            </div>
+          </motion.div>
         </motion.div>
 
-        {/* 页面2: 问题选择 + 具体问题输入 */}
+        {/* 页面2: 问题选择 - 新的三阶段流程 */}
         <motion.div 
           className="absolute inset-0 p-4"
           animate={{ 
@@ -2171,7 +2171,7 @@ const ArcaneCards = () => {
           transition={{ duration: 0.3 }}
         >
           <motion.div 
-            className="text-center mb-6 mt-8"
+            className="text-center mb-10 mt-20"
             animate={{ 
               y: currentPage === 2 ? 0 : -20,
               opacity: currentPage === 2 ? 1 : 0
@@ -2179,133 +2179,148 @@ const ArcaneCards = () => {
             transition={{ delay: currentPage === 2 ? 0.1 : 0, duration: 0.4 }}
           >
             <h2 className="text-2xl sm:text-3xl font-bold mb-4 text-amber-100">
-              What's on your mind today?
+              {currentStage === 1 && "How are you feeling today?"}
+              {currentStage === 2 && `You're feeling ${selectedEmotion?.title.toLowerCase().replace("i'm feeling ", "")}...`}
+              {currentStage === 3 && "Make it personal"}
             </h2>
             <p className="text-sm opacity-70 font-serif">
-              Choose your focus area, then share more details
+              {currentStage === 1 && "Choose what resonates with you right now"}
+              {currentStage === 2 && "What area needs attention?"}
+              {currentStage === 3 && "Share details for deeper insights (optional)"}
             </p>
           </motion.div>
-          
-          {/* 问题分类选择 */}
-          <div className="grid grid-cols-2 gap-3 max-w-sm mx-auto mb-6">
-            {questionTypes.map((type, index) => {
-              const IconComponent = type.icon;
-              const isSelected = selectedQuestion?.id === type.id;
-              
-              return (
+
+          {/* 阶段1: 情感状态选择 */}
+          {currentStage === 1 && (
+            <div className="grid grid-cols-1 gap-6 max-w-md mx-auto mb-12">
+              {emotionalStates.map((emotion, index) => (
                 <motion.div
-                  key={type.id}
-                  className={`relative p-4 rounded-2xl cursor-pointer border ${
-                    isSelected 
-                      ? `bg-gradient-to-br ${type.color} border-amber-400/50` 
+                  key={emotion.id}
+                  className={`p-4 rounded-2xl cursor-pointer border relative ${
+                    selectedEmotion?.id === emotion.id 
+                      ? `bg-gradient-to-br ${emotion.color} border-amber-400/50` 
                       : 'bg-black/30 backdrop-blur-sm border-purple-500/30'
                   }`}
                   animate={{ 
-                    scale: isSelected ? 1.05 : 1,
                     y: currentPage === 2 ? 0 : 20,
                     opacity: currentPage === 2 ? 1 : 0
                   }}
                   transition={{ 
-                    delay: currentPage === 2 ? 0.15 + index * 0.05 : 0,
-                    duration: 0.3,
-                    type: "spring",
-                    stiffness: 200
+                    delay: currentPage === 2 ? 0.15 + index * 0.1 : 0,
+                    duration: 0.3
                   }}
-                  whileHover={{ scale: isSelected ? 1.05 : 1.02 }}
+                  whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
-                  onClick={() => handleQuestionSelection(type)}
+                  onClick={() => handleEmotionSelection(emotion)}
                 >
-                  <div className="text-center">
-                    <IconComponent className="w-6 h-6 sm:w-8 sm:h-8 mx-auto mb-2 filter drop-shadow-lg" />
-                    <h3 className="font-bold text-xs sm:text-sm mb-1">{type.title}</h3>
+                  {/* 轻微的引导动画 - 只对第一个选项 */}
+                  {index === 0 && !selectedEmotion && (
+                    <motion.div
+                      className="absolute -inset-1 bg-blue-500/10 rounded-2xl -z-10"
+                      animate={{ opacity: [0.3, 0.6, 0.3] }}
+                      transition={{ duration: 2, repeat: Infinity }}
+                    />
+                  )}
+                  
+                  <div className="flex items-center space-x-3">
+                    <span className="text-2xl">{emotion.emoji}</span>
+                    <div>
+                      <h3 className="font-bold text-sm">{emotion.title}</h3>
+                      <p className="text-xs opacity-70">{emotion.subtitle}</p>
+                    </div>
                   </div>
                 </motion.div>
-              );
-            })}
-          </div>
+              ))}
+            </div>
+          )}
 
-          {/* 具体问题输入区域 */}
-          {selectedQuestion && (
+          {/* 阶段2: 场景选择 */}
+          {currentStage === 2 && selectedEmotion && (
             <motion.div 
-              className="max-w-md mx-auto mb-6"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2, duration: 0.4 }}
+              className="grid grid-cols-2 gap-6 max-w-md mx-auto mb-12"
             >
-              <div className="bg-black/20 backdrop-blur-sm rounded-2xl p-4 border border-purple-500/20">
-                <div className="text-center mb-4">
-                  <h4 className="font-semibold text-amber-200 mb-2">
-                    ✨ Share more details (Optional but recommended)
-                  </h4>
-                  
-                  {/* 根据选择的分类显示不同的引导示例 */}
-                  <div className="text-xs text-gray-300 mb-3">
-                    {selectedQuestion.id === 'love' && (
-                      <div>
-                        <p className="mb-1">💕 <em>Examples:</em></p>
-                        <p>"How can I improve my relationship?"</p>
-                        <p>"Am I ready for love?"</p>
-                      </div>
-                    )}
-                    {selectedQuestion.id === 'career' && (
-                      <div>
-                        <p className="mb-1">💼 <em>Examples:</em></p>
-                        <p>"Should I take this job offer?"</p>
-                        <p>"How can I advance my career?"</p>
-                      </div>
-                    )}
-                    {selectedQuestion.id === 'growth' && (
-                      <div>
-                        <p className="mb-1">🌱 <em>Examples:</em></p>
-                        <p>"What's blocking my confidence?"</p>
-                        <p>"How can I overcome this challenge?"</p>
-                      </div>
-                    )}
-                    {selectedQuestion.id === 'spiritual' && (
-                      <div>
-                        <p className="mb-1">✨ <em>Examples:</em></p>
-                        <p>"What is my life purpose?"</p>
-                        <p>"How can I find inner peace?"</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
+              {selectedEmotion.scenarios.map((scenario, index) => (
+                <motion.div
+                  key={scenario.id}
+                  className={`p-4 rounded-xl cursor-pointer text-center border ${
+                    selectedScenario?.id === scenario.id
+                      ? 'bg-gradient-to-br from-amber-500 to-orange-500 border-amber-400 shadow-lg shadow-amber-500/25'
+                      : 'bg-black/30 backdrop-blur-sm border-purple-500/30'
+                  }`}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: index * 0.1 }}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => handleScenarioSelection(scenario)}
+                >
+                  <div className="text-lg mb-1">{scenario.emoji}</div>
+                  <h3 className="font-semibold text-xs">{scenario.title}</h3>
+                </motion.div>
+              ))}
+            </motion.div>
+          )}
 
-                {/* 问题输入框 */}
+          {/* 阶段3: 自定义输入 - 优化版 */}
+          {currentStage === 3 && selectedScenario && (
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="max-w-md mx-auto mb-12"
+            >
+              {/* 当前问题展示 - 优化版 */}
+              <motion.div 
+                className="bg-gradient-to-r from-amber-900/20 to-orange-900/20 backdrop-blur-sm rounded-xl p-4 border border-amber-500/30 mb-6"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.2 }}
+              >
+                <p className="text-xs text-amber-300 mb-1">💭 Your question:</p>
+                <p className="text-sm text-amber-100 font-serif italic">
+                  "{selectedScenario.question}"
+                </p>
+              </motion.div>
+              
+              {/* 输入区域 */}
+              <div className="bg-black/20 backdrop-blur-sm rounded-xl p-4 border border-purple-500/20">
                 <div className="relative">
                   <textarea
                     value={customQuestion}
                     onChange={(e) => setCustomQuestion(e.target.value)}
-                    onFocus={() => setQuestionInputFocused(true)}
-                    onBlur={() => setQuestionInputFocused(false)}
-                    placeholder={`Share your specific ${selectedQuestion.title.toLowerCase()} question...`}
-                    className="w-full bg-black/30 border border-amber-500/30 rounded-xl p-3 text-white placeholder-gray-400 resize-none focus:border-amber-500/60 focus:outline-none transition-colors"
+                    placeholder="Tell me more about your situation..."
+                    className="w-full bg-black/30 border border-purple-500/30 rounded-lg p-3 text-white placeholder-gray-400 resize-none focus:border-amber-500/60 focus:outline-none transition-colors"
                     rows="3"
                     maxLength="200"
                   />
-                  
-                  {/* 字数提示 */}
                   <div className="absolute bottom-2 right-2 text-xs text-gray-500">
                     {customQuestion.length}/200
                   </div>
                 </div>
+                
+                {/* 智能反馈提示 */}
+                <div className="mt-3 text-center">
+  
 
-                {/* 鼓励提示 */}
-                <motion.p 
-                  className="text-xs text-amber-200/80 mt-2 text-center"
-                  animate={{ opacity: customQuestion.length > 0 ? 1 : 0.6 }}
-                >
-                  {customQuestion.length > 0 
-                    ? "Perfect! The cards will respond to your clear intention ✨" 
-                    : "More specific questions get more personalized insights 🔮"
-                  }
-                </motion.p>
+                  {customQuestion.length > 10 && customQuestion.length < 50 && (
+                    <p className="text-xs text-amber-300">
+                      ✨ Good! Your reading will be more tailored
+                    </p>
+                  )}
+
+                  {customQuestion.length >= 50 && (
+                    <p className="text-xs text-emerald-300">
+                      🌟 Perfect! Expect a highly personalized reading
+                    </p>
+                  )}
+                </div>
               </div>
             </motion.div>
           )}
           
-          {/* 继续按钮 */}
-          {selectedQuestion && (
+          {/* Continue按钮 - 仅在第三阶段显示 */}
+          {currentStage === 3 && (
             <motion.div 
               className="text-center"
               animate={{ 
@@ -2320,11 +2335,14 @@ const ArcaneCards = () => {
                 whileTap={{ scale: 0.95 }}
                 onClick={startCardSelection}
               >
-                Continue <ArrowRight className="ml-2 w-3 h-3 sm:w-4 sm:h-4" />
+                Start Reading <ArrowRight className="ml-2 w-3 h-3 sm:w-4 sm:h-4" />
               </motion.button>
               
-              <p className="text-xs text-gray-400 mt-2">
-                {customQuestion.length > 0 ? "Ready for your personalized reading" : "Using general guidance for this topic"}
+              <p className="text-xs text-gray-500 mt-2">
+                {customQuestion.length > 0 
+                  ? "Ready for your personalized reading" 
+                  : "Using your selected scenario"
+                }
               </p>
             </motion.div>
           )}
@@ -2392,7 +2410,7 @@ const ArcaneCards = () => {
               )}
 
               <motion.div
-                className="w-20 h-32 mx-auto bg-gradient-to-br from-purple-900 to-purple-800 rounded-lg border border-amber-500/30 mb-8 overflow-hidden"
+                className="w-24 h-36 mx-auto bg-gradient-to-br from-purple-900 to-purple-800 rounded-lg border border-amber-500/30 mb-8 overflow-hidden"
                 whileHover={{ scale: 1.05 }}
                 animate={{ 
                   boxShadow: ["0 0 20px rgba(255, 215, 0, 0.3)", "0 0 30px rgba(255, 215, 0, 0.6)", "0 0 20px rgba(255, 215, 0, 0.3)"]
@@ -2401,7 +2419,124 @@ const ArcaneCards = () => {
                   boxShadow: { duration: 2, repeat: Infinity, ease: "easeInOut" }
                 }}
               >
-                {/* 现有的卡牌背面设计 */}
+                <motion.div
+                  className="w-24 h-36 mx-auto bg-gradient-to-br from-purple-900 to-purple-800 rounded-lg border border-amber-500/30 mb-8 overflow-hidden"
+                  whileHover={{ scale: 1.05 }}
+                  animate={{ 
+                    boxShadow: ["0 0 20px rgba(255, 215, 0, 0.3)", "0 0 30px rgba(255, 215, 0, 0.6)", "0 0 20px rgba(255, 215, 0, 0.3)"]
+                  }}
+                  transition={{ 
+                    boxShadow: { duration: 2, repeat: Infinity, ease: "easeInOut" }
+                  }}
+                >
+                  {/* 添加统一的SVG背面设计 */}
+                  <svg className="w-full h-full rounded-lg" viewBox="0 0 70 110" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                      <radialGradient id="waitingBackgroundGradient" cx="50%" cy="50%" r="80%">
+                        <stop offset="0%" style={{stopColor:'#1a0033', stopOpacity:1}} />
+                        <stop offset="50%" style={{stopColor:'#0f0027', stopOpacity:1}} />
+                        <stop offset="100%" style={{stopColor:'#000015', stopOpacity:1}} />
+                      </radialGradient>
+                      
+                      <linearGradient id="waitingGoldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" style={{stopColor:'#FFD700', stopOpacity:1}} />
+                        <stop offset="50%" style={{stopColor:'#F4D03F', stopOpacity:1}} />
+                        <stop offset="100%" style={{stopColor:'#B8860B', stopOpacity:1}} />
+                      </linearGradient>
+                      
+                      <filter id="waitingGlow" x="-50%" y="-50%" width="200%" height="200%">
+                        <feGaussianBlur stdDeviation="1" result="coloredBlur"/>
+                        <feMerge> 
+                          <feMergeNode in="coloredBlur"/>
+                          <feMergeNode in="SourceGraphic"/>
+                        </feMerge>
+                      </filter>
+                    </defs>
+                    
+                    {/* 背景 */}
+                    <rect width="70" height="110" fill="url(#waitingBackgroundGradient)" rx="8"/>
+                    
+                    {/* 外边框 */}
+                    <rect x="2" y="2" width="66" height="106" fill="none" stroke="url(#waitingGoldGradient)" strokeWidth="0.8" rx="6"/>
+                    <rect x="4" y="4" width="62" height="102" fill="none" stroke="url(#waitingGoldGradient)" strokeWidth="0.4" rx="4"/>
+                    
+                    {/* 顶部月相 */}
+                    <g transform="translate(35,12)">
+                      <g transform="translate(-12,0)">
+                        <circle r="2.5" fill="none" stroke="url(#waitingGoldGradient)" strokeWidth="0.4"/>
+                        <circle r="2" cx="1" cy="0" fill="#1a0033"/>
+                      </g>
+                      <circle r="3.5" fill="url(#waitingGoldGradient)" opacity="0.9" filter="url(#waitingGlow)"/>
+                      <circle r="2.5" fill="#1a0033" opacity="0.3"/>
+                      <g transform="translate(12,0)">
+                        <circle r="2.5" fill="none" stroke="url(#waitingGoldGradient)" strokeWidth="0.4"/>
+                        <circle r="2" cx="-1" cy="0" fill="#1a0033"/>
+                      </g>
+                    </g>
+                    
+                    {/* 中央主图案 */}
+                    <g transform="translate(35,55)">
+                      <circle r="20" fill="none" stroke="url(#waitingGoldGradient)" strokeWidth="0.6" opacity="0.6"/>
+                      <circle r="17" fill="none" stroke="url(#waitingGoldGradient)" strokeWidth="0.3" opacity="0.4"/>
+                      
+                      {/* 太阳光芒 */}
+                      <g>
+                        <line x1="0" y1="-15" x2="0" y2="-18" stroke="url(#waitingGoldGradient)" strokeWidth="0.6"/>
+                        <line x1="11" y1="-11" x2="13" y2="-13" stroke="url(#waitingGoldGradient)" strokeWidth="0.6"/>
+                        <line x1="15" y1="0" x2="18" y2="0" stroke="url(#waitingGoldGradient)" strokeWidth="0.6"/>
+                        <line x1="11" y1="11" x2="13" y2="13" stroke="url(#waitingGoldGradient)" strokeWidth="0.6"/>
+                        <line x1="0" y1="15" x2="0" y2="18" stroke="url(#waitingGoldGradient)" strokeWidth="0.6"/>
+                        <line x1="-11" y1="11" x2="-13" y2="13" stroke="url(#waitingGoldGradient)" strokeWidth="0.6"/>
+                        <line x1="-15" y1="0" x2="-18" y2="0" stroke="url(#waitingGoldGradient)" strokeWidth="0.6"/>
+                        <line x1="-11" y1="-11" x2="-13" y2="-13" stroke="url(#waitingGoldGradient)" strokeWidth="0.6"/>
+                      </g>
+                      
+                      {/* 中央水晶球 */}
+                      <circle r="11" fill="url(#waitingGoldGradient)" opacity="0.1"/>
+                      <circle r="9" fill="none" stroke="url(#waitingGoldGradient)" strokeWidth="0.6"/>
+                      
+                      {/* 全视之眼 */}
+                      <g opacity="0.8">
+                        <polygon points="0,-6 -5,3 5,3" fill="none" stroke="url(#waitingGoldGradient)" strokeWidth="0.6"/>
+                        <ellipse cx="0" cy="-1" rx="3" ry="1.5" fill="url(#waitingGoldGradient)" opacity="0.7"/>
+                        <circle cx="0" cy="-1" r="1" fill="#1a0033"/>
+                        <circle cx="0" cy="-1" r="0.5" fill="url(#waitingGoldGradient)"/>
+                      </g>
+                    </g>
+                    
+                    {/* 底部月相 */}
+                    <g transform="translate(35,98)">
+                      <g transform="translate(-12,0)">
+                        <circle r="2.5" fill="none" stroke="url(#waitingGoldGradient)" strokeWidth="0.4"/>
+                        <circle r="2" cx="1" cy="0" fill="#1a0033"/>
+                      </g>
+                      <circle r="3.5" fill="url(#waitingGoldGradient)" opacity="0.9" filter="url(#waitingGlow)"/>
+                      <circle r="2.5" fill="#1a0033" opacity="0.3"/>
+                      <g transform="translate(12,0)">
+                        <circle r="2.5" fill="none" stroke="url(#waitingGoldGradient)" strokeWidth="0.4"/>
+                        <circle r="2" cx="-1" cy="0" fill="#1a0033"/>
+                      </g>
+                    </g>
+                    
+                    {/* 星空点缀 */}
+                    <g fill="url(#waitingGoldGradient)" opacity="0.6">
+                      <circle cx="15" cy="25" r="0.5"/>
+                      <circle cx="55" cy="30" r="0.5"/>
+                      <circle cx="12" cy="75" r="0.4"/>
+                      <circle cx="58" cy="80" r="0.4"/>
+                      <circle cx="20" cy="85" r="0.3"/>
+                      <circle cx="50" cy="20" r="0.3"/>
+                    </g>
+                    
+                    {/* 角落装饰 */}
+                    <g fill="none" stroke="url(#waitingGoldGradient)" strokeWidth="0.3" opacity="0.5">
+                      <path d="M 6 6 L 12 6 M 6 6 L 6 12"/>
+                      <path d="M 64 6 L 58 6 M 64 6 L 64 12"/>
+                      <path d="M 6 104 L 12 104 M 6 104 L 6 98"/>
+                      <path d="M 64 104 L 58 104 M 64 104 L 64 98"/>
+                    </g>
+                  </svg>
+                </motion.div>
               </motion.div>
               
               <motion.button
@@ -2436,29 +2571,83 @@ const ArcaneCards = () => {
               }}
               transition={{ duration: 0.3 }}
             >
-              <div className="relative mx-auto mb-8" style={{ width: '200px', height: '160px' }}>
-                {Array.from({ length: 5 }).map((_, i) => (
+              {/* 放大的动画容器 */}
+              <div className="relative mx-auto mb-8" style={{ width: '320px', height: '240px' }}>
+                
+                {/* 添加能量粒子背景 */}
+                <div className="absolute inset-0 pointer-events-none">
+                  {Array.from({ length: 12 }).map((_, i) => (
+                    <motion.div
+                      key={`particle-${i}`}
+                      className="absolute w-1 h-1 bg-amber-300 rounded-full opacity-60"
+                      animate={{
+                        x: [
+                          Math.random() * 320,
+                          Math.random() * 320,
+                          Math.random() * 320
+                        ],
+                        y: [
+                          Math.random() * 240,
+                          Math.random() * 240,
+                          Math.random() * 240
+                        ],
+                        opacity: [0, 0.8, 0],
+                      }}
+                      transition={{
+                        duration: 3,
+                        repeat: Infinity,
+                        delay: i * 0.25,
+                        ease: "easeInOut"
+                      }}
+                    />
+                  ))}
+                </div>
+
+                {/* 卡牌动画 - 放大版本 */}
+                {Array.from({ length: 7 }).map((_, i) => (
                   <motion.div
-                    key={i}
-                    className="absolute w-20 h-32 rounded-lg border border-amber-500/30 overflow-hidden"
+                    key={`shuffle-card-${i}`}
+                    className="absolute w-24 h-36 rounded-lg border border-amber-500/30 overflow-hidden shadow-2xl"
                     style={{
-                      left: `${40 + i * 8}px`,
-                      top: `${20 + i * 8}px`,
-                      zIndex: 5 - i
+                      left: `${120 + i * 12}px`,
+                      top: `${80 + i * 8}px`,
+                      zIndex: 7 - i,
+                      filter: `blur(${i * 0.3}px)` // 景深效果
                     }}
                     animate={{
-                      x: [0, Math.random() * 80 - 40, 0],
-                      y: [0, Math.random() * 80 - 40, 0],
-                      rotate: [0, Math.random() * 180 - 90, 0],
+                      x: [
+                        0, 
+                        (i - 3) * 60 + Math.random() * 40 - 20, 
+                        (i - 3) * -45 + Math.random() * 30 - 15,
+                        0
+                      ],
+                      y: [
+                        0, 
+                        Math.sin(i * 0.8) * 50 + Math.random() * 30 - 15,
+                        Math.cos(i * 1.2) * 40 + Math.random() * 25 - 12,
+                        0
+                      ],
+                      rotate: [
+                        0, 
+                        (i - 3) * 45 + Math.random() * 60 - 30,
+                        (i - 3) * -30 + Math.random() * 40 - 20,
+                        0
+                      ],
+                      scale: [
+                        1, 
+                        1.1 + Math.random() * 0.2,
+                        0.95 + Math.random() * 0.15,
+                        1
+                      ]
                     }}
                     transition={{
                       duration: 2.2,
                       repeat: 1,
                       ease: "easeInOut",
-                      delay: i * 0.1
+                      delay: i * 0.08
                     }}
                   >
-                    {/* 使用新的塔罗卡背设计 */}
+                    {/* 统一的SVG背面设计 */}
                     <svg className="w-full h-full" viewBox="0 0 70 110" xmlns="http://www.w3.org/2000/svg">
                       <defs>
                         <radialGradient id={`shuffleBackgroundGradient-${i}`} cx="50%" cy="50%" r="80%">
@@ -2505,7 +2694,6 @@ const ArcaneCards = () => {
                       
                       {/* 中央主图案 */}
                       <g transform="translate(35,55)">
-                        {/* 外圆环 */}
                         <circle r="20" fill="none" stroke={`url(#shuffleGoldGradient-${i})`} strokeWidth="0.6" opacity="0.6"/>
                         <circle r="17" fill="none" stroke={`url(#shuffleGoldGradient-${i})`} strokeWidth="0.3" opacity="0.4"/>
                         
@@ -2566,17 +2754,26 @@ const ArcaneCards = () => {
                         <path d="M 64 104 L 58 104 M 64 104 L 64 98"/>
                       </g>
                     </svg>
+                    
+                    {/* 卡片发光效果 */}
+                    <motion.div
+                      className="absolute -inset-1 bg-gradient-to-r from-amber-400/20 to-orange-400/20 rounded-lg -z-10 blur-sm"
+                      animate={{ 
+                        opacity: [0.2, 0.5, 0.2],
+                        scale: [1, 1.05, 1]
+                      }}
+                      transition={{ 
+                        duration: 1.5 + i * 0.2, 
+                        repeat: Infinity,
+                        ease: "easeInOut"
+                      }}
+                    />
                   </motion.div>
                 ))}
               </div>
               
-              <motion.p 
-                className="text-amber-200 font-serif text-sm"
-                animate={{ opacity: [0.6, 1, 0.6] }}
-                transition={{ duration: 1.5, repeat: Infinity }}
-              >
-                The cards are choosing their moment...
-              </motion.p>
+              {/* 动态文案 */}
+              <ShuffleText />
             </motion.div>
           )}
 
@@ -2592,7 +2789,7 @@ const ArcaneCards = () => {
             >
               {/* 卡牌网格 - 3排每排3张 */}
               <motion.div 
-                className="grid grid-cols-3 gap-3 max-w-xs mx-auto mb-6"
+                className="grid grid-cols-3 gap-5 max-w-xs mx-auto mb-6"
                 animate={{ 
                   opacity: currentPage === 3 && cardSelectionPhase === 'selecting' ? 1 : 0,
                   y: currentPage === 3 && cardSelectionPhase === 'selecting' ? 0 : 20
@@ -2692,218 +2889,246 @@ const ArcaneCards = () => {
           )}
         </motion.div>
 
-        {/* 页面4: 解读结果 */}
+        {/* 页面4: 解读结果 - 移动端优化版本 */}
         <motion.div 
-          className="absolute inset-0 p-4"
+          className="absolute inset-0 overflow-y-auto"
           animate={{ 
             opacity: currentPage === 4 ? 1 : 0,
             pointerEvents: currentPage === 4 ? 'auto' : 'none'
           }}
           transition={{ duration: 0.3 }}
         >
-          <motion.div 
-            className="text-center mb-6 mt-6"
-            animate={{ 
-              y: currentPage === 4 ? 0 : -20,
-              opacity: currentPage === 4 ? 1 : 0
-            }}
-            transition={{ delay: currentPage === 4 ? 0.1 : 0, duration: 0.5 }}
-          >
-            <h2 className="text-xl sm:text-2xl font-bold mb-4 text-amber-100">Your Reading Revealed</h2>
-            
-            {/* 主卡展示 */}
+          <div className="min-h-full px-4 py-6">
+            {/* 标题区域 */}
             <motion.div 
-              className="relative bg-gradient-to-br from-emerald-900/30 via-black/50 to-emerald-800/30 backdrop-blur-sm rounded-2xl p-6 mb-6 max-w-xs mx-auto border border-emerald-500/30"
+              className="text-center mb-6"
+              animate={{ 
+                y: currentPage === 4 ? 0 : -20,
+                opacity: currentPage === 4 ? 1 : 0
+              }}
+              transition={{ delay: currentPage === 4 ? 0.1 : 0, duration: 0.5 }}
+            >
+              <h2 className="text-2xl font-bold text-amber-100 mb-2">Your Reading Revealed</h2>
+              <div className="w-16 h-px bg-gradient-to-r from-transparent via-amber-400 to-transparent mx-auto"></div>
+            </motion.div>
+
+            {/* 卡片展示区域 - 优化布局 */}
+            <motion.div 
+              className="relative bg-gradient-to-br from-emerald-900/30 via-black/50 to-emerald-800/30 backdrop-blur-sm rounded-2xl p-6 mb-8 max-w-sm mx-auto border border-emerald-500/30"
               animate={{ 
                 opacity: currentPage === 4 ? 1 : 0,
                 scale: currentPage === 4 ? 1 : 0.9
               }}
               transition={{ delay: currentPage === 4 ? 0.2 : 0, duration: 0.5 }}
             >
-              {selectedCards[0] && CardSymbols[selectedCards[0].name] ? (
-                <>
-                  <div className={`text-4xl sm:text-6xl mb-3 filter drop-shadow-2xl`}>
-                    {CardSymbols[selectedCards[0].name].symbol}
+              <div className="text-center">
+                {selectedCards[0] && CardSymbols[selectedCards[0].name] ? (
+                  <>
+                    <div className="text-5xl mb-3 filter drop-shadow-2xl">
+                      {CardSymbols[selectedCards[0].name].symbol}
+                    </div>
+                    <motion.div 
+                      className="text-2xl mb-4"
+                      animate={{ opacity: [0.5, 1, 0.5] }}
+                      transition={{ duration: 3, repeat: Infinity }}
+                    >
+                      {CardSymbols[selectedCards[0].name].accent}
+                    </motion.div>
+                  </>
+                ) : (
+                  <div className="text-5xl mb-3 filter drop-shadow-2xl text-emerald-300">
+                    ✦
                   </div>
-                  <motion.div 
-                    className="text-2xl mb-2"
-                    animate={{ opacity: [0.5, 1, 0.5] }}
-                    transition={{ duration: 3, repeat: Infinity }}
-                  >
-                    {CardSymbols[selectedCards[0].name].accent}
-                  </motion.div>
-                </>
-              ) : (
-                <div className="text-4xl sm:text-6xl mb-3 filter drop-shadow-2xl text-emerald-300">
-                  ✦
-                </div>
-              )}
-              <h3 className="font-bold text-lg sm:text-xl mb-2 text-emerald-100">
-                {selectedCards[0]?.name || 'The Mystery Card'}
-              </h3>
-              <p className="text-xs sm:text-sm opacity-80 text-emerald-200/70 font-serif">
-                {selectedCards[0] ? 
-                  `${selectedCards[0].upright ? 'Upright' : 'Reversed'} • ${selectedCards[0].element} Element` :
-                  'Ancient Wisdom • Universal Element'
-                }
-              </p>
+                )}
+                <h3 className="font-bold text-xl mb-2 text-emerald-100">
+                  {selectedCards[0]?.name || 'The Mystery Card'}
+                </h3>
+                <p className="text-sm opacity-80 text-emerald-200/70 font-serif">
+                  {selectedCards[0] ? 
+                    `${selectedCards[0].upright ? 'Upright' : 'Reversed'} • ${selectedCards[0].element} Element` :
+                    'Ancient Wisdom • Universal Element'
+                  }
+                </p>
+              </div>
             </motion.div>
             
-            {/* AI解读内容 */}
+            {/* 解读内容区域 - 移动端专属优化 */}
             <motion.div 
-              className="text-left max-w-md mx-auto mb-6"
+              className="max-w-lg mx-auto mb-8"
               animate={{ 
                 y: currentPage === 4 ? 0 : 20,
                 opacity: currentPage === 4 ? 1 : 0
               }}
               transition={{ delay: currentPage === 4 ? 0.4 : 0, duration: 0.5 }}
             >
-              <div className="bg-black/20 backdrop-blur-sm p-4 sm:p-5 rounded-2xl border border-emerald-500/20">
-                <p className="text-sm leading-relaxed text-gray-200 font-serif">
-                  {readingResult?.reading || generateReading(
-                    selectedCards, 
-                    selectedQuestion?.question || 'What guidance do I need?', 
-                    selectedPlan?.id
-                  ).reading}
-                </p>
-              </div>
-              
-              <motion.div 
-                className="mt-4 bg-gradient-to-r from-amber-900/20 to-orange-900/20 backdrop-blur-sm p-3 sm:p-4 rounded-2xl border border-amber-500/30"
-                animate={{ 
-                  opacity: currentPage === 4 ? 1 : 0
-                }}
-                transition={{ delay: currentPage === 4 ? 0.6 : 0, duration: 0.4 }}
-              >
-                <h5 className="font-semibold text-amber-200 mb-2 text-sm">Key Insight:</h5>
-                <p className="text-amber-200 font-serif italic text-sm">
-                  "{readingResult?.keyInsight || generateReading(
-                    selectedCards, 
-                    selectedQuestion?.question || 'What guidance do I need?', 
-                    selectedPlan?.id
-                  ).keyInsight}"
-                </p>
-              </motion.div>
-            </motion.div>
-            
-            {/* 用户反馈评分 */}
-            <motion.div 
-              className="text-center mb-6"
-              animate={{ 
-                opacity: currentPage === 4 ? 1 : 0
-              }}
-              transition={{ delay: currentPage === 4 ? 0.7 : 0, duration: 0.4 }}
-            >
-              <p className="text-sm mb-3">How helpful was this reading for you?</p>
-              <div className="flex justify-center space-x-2 mb-4">
-                {[1,2,3,4,5].map(star => (
-                  <button 
-                    key={star}
-                    onClick={() => handleRating(star)}
-                    className="text-2xl transition-transform hover:scale-110"
-                  >
-                    {userRating >= star ? '⭐' : '☆'}
-                  </button>
-                ))}
-              </div>
-              
-              {userRating >= 4 && (
-                <motion.div 
-                  initial={{opacity:0}} 
-                  animate={{opacity:1}}
-                  className="mb-4"
-                >
-                  <p className="text-xs mb-2">Amazing! Would you like to share this with friends?</p>
-                  <button 
-                    onClick={handleShare}
-                    className="bg-purple-600 px-4 py-2 rounded-full text-sm hover:bg-purple-700 transition-colors"
-                  >
-                    Share with Friends ✨
-                  </button>
-                </motion.div>
-              )}
-            </motion.div>
-            
-            {/* 操作按钮 */}
-            <motion.div 
-              className="flex space-x-3 justify-center mb-6"
-              animate={{ 
-                opacity: currentPage === 4 ? 1 : 0
-              }}
-              transition={{ delay: currentPage === 4 ? 0.8 : 0, duration: 0.4 }}
-            >
-              <motion.button 
-                className="bg-black/30 backdrop-blur-sm px-4 py-2 sm:px-5 sm:py-3 rounded-xl flex items-center border border-purple-500/30 text-sm"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => {
-                  trackUserAction(EVENTS.SAVE_CLICKED, {
-                    planType: selectedPlan?.id,
-                    cardName: selectedCards[0]?.name
-                  });
-                  // 这里可以实现保存功能
-                  alert('Reading saved locally 📱');
-                }}
-              >
-                <Save className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
-                Save
-              </motion.button>
-              <motion.button 
-                className="bg-black/30 backdrop-blur-sm px-4 py-2 sm:px-5 sm:py-3 rounded-xl flex items-center border border-purple-500/30 text-sm"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={handleShare}
-              >
-                <Share2 className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
-                Share
-              </motion.button>
-            </motion.div>
-            
-            {/* 升级引导 */}
-            {selectedPlan?.id === 'quick' && (
-              <motion.div 
-                className="bg-gradient-to-r from-amber-900/20 to-orange-900/20 backdrop-blur-sm rounded-2xl p-4 sm:p-6 max-w-sm mx-auto border border-amber-500/30"
-                animate={{ 
-                  y: currentPage === 4 ? 0 : 20,
-                  opacity: currentPage === 4 ? 1 : 0
-                }}
-                transition={{ delay: currentPage === 4 ? 1 : 0, duration: 0.4 }}
-              >
-                <div className="text-center mb-4">
-                  <p className="text-sm mb-2 font-serif text-amber-100/90">
-                    🔮 <strong>Your reading touched the surface...</strong>
-                  </p>
-                  <div className="text-xs text-amber-200/80 leading-relaxed mb-3">
-                    <strong>With AI Deep Reading, discover:</strong><br/>
-                    ✨ <em>Why</em> this situation arose in your life<br/>
-                    🎯 <em>Specific actions</em> to take this week<br/>
-                    ⏰ <em>Timeline</em> for when changes manifest<br/>
-                    💫 <em>Hidden influences</em> you're not seeing
+              {/* 主要解读内容 - 重新设计格式 */}
+              <div className="bg-black/20 backdrop-blur-sm rounded-2xl border border-emerald-500/20 mb-6 overflow-hidden">
+                {/* 内容标题 */}
+                <div className="bg-emerald-500/10 px-6 py-4 border-b border-emerald-500/20">
+                  <h4 className="text-emerald-200 font-semibold text-sm flex items-center">
+                    <span className="text-emerald-400 mr-2">📖</span>
+                    Your Tarot Guidance
+                  </h4>
+                </div>
+                
+                {/* 解读文本 - 优化排版 */}
+                <div className="p-6">
+                  <div className="space-y-6">
+                    {formatReading(readingResult?.reading || 'Your reading is being prepared...').map((paragraph, index) => (
+                      <motion.div 
+                        key={index}
+                        initial={{ opacity: 0, y: 15 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: currentPage === 4 ? 0.5 + index * 0.3 : 0 }}
+                        className="relative"
+                      >
+                        {/* 段落装饰 */}
+                        {index === 0 && (
+                          <div className="absolute -left-4 top-0 w-2 h-full bg-gradient-to-b from-emerald-400 to-transparent opacity-30 rounded-full"></div>
+                        )}
+                        
+                        <p className="text-gray-200 leading-7 text-base font-serif">
+                          {paragraph}
+                        </p>
+                        
+                        {/* 段落间分隔线 */}
+                        {index < formatReading(readingResult?.reading || '').length - 1 && (
+                          <div className="mt-6 flex justify-center">
+                            <div className="w-8 h-px bg-gradient-to-r from-transparent via-emerald-500/30 to-transparent"></div>
+                          </div>
+                        )}
+                      </motion.div>
+                    ))}
                   </div>
                 </div>
-                <motion.button 
-                  className="bg-gradient-to-r from-amber-600 to-orange-500 px-4 sm:px-6 py-2 sm:py-3 rounded-2xl font-bold border border-amber-400/30 text-sm w-full"
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => {
-                    trackUserAction(EVENTS.UPGRADE_CLICKED, {
-                      source: 'result_page_enhanced_upsell',
-                      currentPlan: 'quick',
-                      targetPlan: 'deep',
-                      userRating: userRating,
-                      cardName: selectedCards[0]?.name
-                    });
-                    showPaymentIntentDialog(plans.find(p => p.id === 'deep'));
-                  }}
-                >
-                  🚀 Unlock AI Deep Reading - $2.99 TODAY
-                </motion.button>
-                <p className="text-xs text-amber-200/60 mt-2 text-center">
-                  Join 1,247 users who upgraded today
-                </p>
+              </div>
+              
+              {/* Key Insight区域 - 独立卡片设计 */}
+              <motion.div 
+                className="bg-gradient-to-br from-amber-900/30 to-orange-900/30 backdrop-blur-sm rounded-2xl border border-amber-500/30 overflow-hidden"
+                animate={{ 
+                  opacity: currentPage === 4 ? 1 : 0
+                }}
+                transition={{ delay: currentPage === 4 ? 0.8 : 0, duration: 0.4 }}
+              >
+                {/* Insight标题区域 */}
+                <div className="bg-amber-500/10 px-6 py-4 border-b border-amber-500/20">
+                  <h5 className="text-amber-200 font-semibold text-sm flex items-center">
+                    <span className="text-amber-400 mr-2">✨</span>
+                    Key Insight
+                  </h5>
+                </div>
+                
+                {/* Insight内容 */}
+                <div className="p-6">
+                  <div className="relative">
+                    <div className="absolute -left-4 top-0 w-2 h-full bg-gradient-to-b from-amber-400 to-transparent opacity-40 rounded-full"></div>
+                    <p className="text-amber-100 font-serif italic text-base leading-7 pl-2">
+                      "{readingResult?.keyInsight || "Trust in the wisdom revealed by this moment"}"
+                    </p>
+                  </div>
+                </div>
               </motion.div>
-            )}
-          </motion.div>
+            </motion.div>
+            
+            {/* 用户反馈区域 - 简化设计 */}
+            <motion.div 
+              className="text-center mb-8 max-w-sm mx-auto"
+              animate={{ 
+                opacity: currentPage === 4 ? 1 : 0
+              }}
+              transition={{ delay: currentPage === 4 ? 1.0 : 0, duration: 0.4 }}
+            >
+              <div className="bg-black/20 backdrop-blur-sm rounded-2xl p-6 border border-purple-500/20">
+                <p className="text-sm mb-5 text-gray-300">How helpful was this reading?</p>
+                <div className="flex justify-center space-x-4 mb-6">
+                  {[1,2,3,4,5].map(star => (
+                    <motion.button 
+                      key={star}
+                      onClick={() => handleRating(star)}
+                      className="text-3xl transition-all duration-200 hover:scale-110 focus:outline-none"
+                      whileTap={{ scale: 0.9 }}
+                    >
+                      {userRating >= star ? '⭐' : '☆'}
+                    </motion.button>
+                  ))}
+                </div>
+                
+                {/* 评分后的反馈 */}
+                {userRating > 0 && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="border-t border-purple-500/20 pt-4 mt-4"
+                  >
+                    {userRating >= 4 ? (
+                      <div>
+                        <p className="text-emerald-300 text-sm mb-4">✨ Thank you! Share this wisdom?</p>
+                        <button 
+                          onClick={handleShare}
+                          className="bg-gradient-to-r from-purple-600 to-pink-600 px-6 py-3 rounded-full text-sm font-medium hover:from-purple-700 hover:to-pink-700 transition-all duration-200 transform hover:scale-105"
+                        >
+                          Share with Friends ✨
+                        </button>
+                      </div>
+                    ) : (
+                      <p className="text-gray-400 text-sm">Thank you for your feedback! 🙏</p>
+                    )}
+                  </motion.div>
+                )}
+              </div>
+            </motion.div>
+            
+            {/* 操作按钮区域 - 移动端优化 */}
+            <motion.div 
+              className="flex flex-col space-y-4 max-w-sm mx-auto mb-8"
+              animate={{ 
+                opacity: currentPage === 4 ? 1 : 0
+              }}
+              transition={{ delay: currentPage === 4 ? 1.2 : 0, duration: 0.4 }}
+            >
+              <motion.button 
+                className="bg-black/30 backdrop-blur-sm px-6 py-4 rounded-xl flex items-center justify-center border border-purple-500/30 text-sm font-medium hover:bg-black/40 transition-all duration-200 w-full"
+                whileHover={{ scale: 1.02, y: -2 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => {
+                  trackUserAction(EVENTS.SAVE_CLICKED, {
+                    planType: 'quick',
+                    cardName: selectedCards[0]?.name
+                  });
+                  navigator.clipboard?.writeText(`My Tarot Reading: ${readingResult?.reading || ''}\n\nKey Insight: ${readingResult?.keyInsight || ''}`);
+                  alert('Reading copied to clipboard! 📱');
+                }}
+              >
+                <Save className="w-4 h-4 mr-2" />
+                Save Reading
+              </motion.button>
+              
+              <motion.button 
+                className="bg-black/30 backdrop-blur-sm px-6 py-4 rounded-xl flex items-center justify-center border border-purple-500/30 text-sm font-medium hover:bg-black/40 transition-all duration-200 w-full"
+                whileHover={{ scale: 1.02, y: -2 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={handleShare}
+              >
+                <Share2 className="w-4 h-4 mr-2" />
+                Share Reading
+              </motion.button>
+            </motion.div>
+
+            {/* 底部装饰和安全距离 */}
+            <motion.div 
+              className="text-center opacity-20 pb-8 pt-4"
+              animate={{ 
+                opacity: currentPage === 4 ? 0.2 : 0
+              }}
+              transition={{ delay: currentPage === 4 ? 1.5 : 0, duration: 0.6 }}
+            >
+              <div className="text-amber-400/30 text-sm font-serif">
+                ✦ ✧ ✦ ✧ ✦
+              </div>
+              <p className="text-xs text-gray-500 mt-4">Scroll up to re-read your guidance</p>
+            </motion.div>
+          </div>
         </motion.div>
       </div>
     </div>
