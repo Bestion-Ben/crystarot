@@ -1269,7 +1269,7 @@ const ArcaneCards = () => {
       'The Devil': {
         love: {
           upright: "Passionate attraction and intense desire dominate your love life. The Devil indicates powerful sexual chemistry and deep romantic obsession, but warns against losing yourself in unhealthy relationship patterns or addiction to drama.",
-          reversed: "You're breaking free from toxic relationship patterns or unhealthy romantic obsessions. The Devil reversed indicates liberation from codependency, manipulation, or addictive relationship dynamics."
+          reversed: "ing free from toxic relationship patterns or unhealthy romantic obsessions. The Devil reversed indicates liberation from codependency, manipulation, or addictive relationship dynamics."
         },
         career: {
           upright: "Material success through ambition, but beware of compromising your values. The Devil indicates professional advancement driven by desire for money or status, but warns against unethical practices or becoming trapped by golden handcuffs.",
