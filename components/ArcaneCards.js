@@ -2011,7 +2011,7 @@ const ArcaneCards = () => {
   const handleShare = () => {
     const shareData = {
       title: 'My Tarot Reading Results',
-      text: `I just got an amazing tarot reading from ArcaneCards! The insights from ${selectedCards[0]?.name} were so enlightening. You should try it too!`,
+      text: `I just got an amazing tarot reading from  Crystarot! The insights from ${selectedCards[0]?.name} were so enlightening. You should try it too!`,
       url: window.location.origin
     };
     
@@ -2069,7 +2069,7 @@ const ArcaneCards = () => {
             transition={{ delay: currentPage === 1 ? 0.1 : 0, duration: 0.4 }}
           >
             <h1 className="text-3xl sm:text-4xl font-bold mb-2 bg-gradient-to-r from-amber-400 via-orange-300 to-amber-500 bg-clip-text text-transparent">
-              ⟐ ArcaneCards ⟐
+              ⟐ Crystarot ⟐
             </h1>
             <p className="text-base sm:text-lg opacity-90 font-serif text-amber-100/80">
               Ancient Wisdom, Modern Insight
