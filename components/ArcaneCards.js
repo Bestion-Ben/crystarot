@@ -34,6 +34,11 @@ const ArcaneCards = () => {
   const [selectedEmotion, setSelectedEmotion] = useState(null);
   const [selectedScenario, setSelectedScenario] = useState(null);
   const [currentStage, setCurrentStage] = useState(1);
+  const [emailInput, setEmailInput] = useState('');
+  const [showEmailForm, setShowEmailForm] = useState(false);
+  const [emailSubmitted, setEmailSubmitted] = useState(false);
+  const [selectedFeedback, setSelectedFeedback] = useState('');
+  const [showFeedbackForm, setShowFeedbackForm] = useState(false);
   const ShuffleText = () => {
     const [textIndex, setTextIndex] = useState(0);
     const texts = [
@@ -1436,6 +1441,7 @@ const ArcaneCards = () => {
       selectedCards: cards.map(c => ({ name: c.name, element: c.element, upright: c.upright })),
       readingMethod: 'attempting_ai'
     });
+
     
     // 尝试AI API - 简化版本
     try {
@@ -1505,6 +1511,14 @@ const ArcaneCards = () => {
         readingMethod: 'local_fallback',
         fallbackReason: error.name === 'AbortError' ? 'timeout' : 'network_error',
         errorMessage: error.message
+      });
+
+      
+      // 在解读成功后添加
+      trackUserAction('reading_generation_time', {
+        duration: Date.now() - readingStartTime,
+        method: result.source,
+        questionType: selectedQuestion?.id
       });
       
       // 使用本地算法
@@ -2005,13 +2019,66 @@ const ArcaneCards = () => {
       cardName: selectedCards[0]?.name,
       timeToRate: Date.now() - pageStartTime
     });
+
+    // 根据评分显示不同内容
+    if (rating >= 4) {
+      setShowEmailForm(true);
+      setShowFeedbackForm(false);
+    } else if (rating <= 3) {
+      setShowFeedbackForm(true);
+      setShowEmailForm(false);
+    }
   };
 
-  // 处理分享
+  // 添加邮箱提交处理函数
+  const handleEmailSubmit = async () => {
+    if (!emailInput.trim()) return;
+    
+    try {
+      const response = await fetch('/api/collect-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: emailInput.trim(),
+          rating: userRating,
+          cardName: selectedCards[0]?.name,
+          questionType: selectedQuestion?.id,
+          timestamp: new Date().toISOString()
+        })
+      });
+
+      if (response.ok) {
+        setEmailSubmitted(true);
+        trackUserAction(EVENTS.EMAIL_PROVIDED, {
+          email: emailInput,
+          rating: userRating,
+          planType: 'quick'
+        });
+      }
+    } catch (error) {
+      console.error('Email submission failed:', error);
+    }
+  };
+
+  // 添加反馈选择处理函数
+  const handleFeedbackSelect = (feedback) => {
+    setSelectedFeedback(feedback);
+    
+    trackUserAction(EVENTS.FEEDBACK_PROVIDED, {
+      feedback,
+      rating: userRating,
+      planType: 'quick',
+      questionType: selectedQuestion?.id
+    });
+  };
+
   const handleShare = () => {
+    const cardName = selectedCards[0]?.name || 'Mystery Card';
+    const keyInsight = readingResult?.keyInsight || 'Ancient wisdom revealed';
+    
     const shareData = {
-      title: 'My Tarot Reading Results',
-      text: `I just got an amazing tarot reading from  Crystarot! The insights from ${selectedCards[0]?.name} were so enlightening. You should try it too!`,
+      title: `My ${cardName} Tarot Reading - Crystarot`,
+      text: `I just got an amazing insight from ${cardName}: "${keyInsight}" ✨ Try your free reading at Crystarot!`,
       url: window.location.origin
     };
     
@@ -2019,7 +2086,7 @@ const ArcaneCards = () => {
       shareMethod: 'native_share',
       planType: 'quick',
       userRating: userRating,
-      cardName: selectedCards[0]?.name
+      cardName: cardName
     });
 
     if (navigator.share) {
@@ -2029,16 +2096,38 @@ const ArcaneCards = () => {
           success: true
         });
       }).catch(() => {
+        // 如果原生分享失败，回退到复制链接
+        fallbackShare(shareData);
+      });
+    } else {
+      fallbackShare(shareData);
+    }
+  };
+
+  // 添加回退分享函数
+  const fallbackShare = (shareData) => {
+    const shareText = `${shareData.text}\n\n${shareData.url}`;
+    
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(shareText).then(() => {
+        alert('Reading shared! Link copied to clipboard 📋');
         trackUserAction(EVENTS.SHARE_COMPLETED, {
-          shareMethod: 'native_share',
-          success: false
+          shareMethod: 'copy_link',
+          success: true
         });
       });
     } else {
-      navigator.clipboard.writeText(shareData.url);
-      alert('Link copied! Share it with your friends 🔮');
+      // 最后的回退方案
+      const textArea = document.createElement('textarea');
+      textArea.value = shareText;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      alert('Reading shared! Link copied 📋');
+      
       trackUserAction(EVENTS.SHARE_COMPLETED, {
-        shareMethod: 'copy_link',
+        shareMethod: 'manual_copy',
         success: true
       });
     }
@@ -3031,7 +3120,7 @@ const ArcaneCards = () => {
               </motion.div>
             </motion.div>
             
-            {/* 用户反馈区域 - 简化设计 */}
+            {/* 用户反馈区域 - 完全重写 */}
             <motion.div 
               className="text-center mb-8 max-w-sm mx-auto"
               animate={{ 
@@ -3054,27 +3143,88 @@ const ArcaneCards = () => {
                   ))}
                 </div>
                 
-                {/* 评分后的反馈 */}
-                {userRating > 0 && (
+                {/* 高评分邮箱收集 */}
+                {showEmailForm && !emailSubmitted && (
                   <motion.div 
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     className="border-t border-purple-500/20 pt-4 mt-4"
                   >
-                    {userRating >= 4 ? (
-                      <div>
-                        <p className="text-emerald-300 text-sm mb-4">✨ Thank you! Share this wisdom?</p>
-                        <button 
-                          onClick={handleShare}
-                          className="bg-gradient-to-r from-purple-600 to-pink-600 px-6 py-3 rounded-full text-sm font-medium hover:from-purple-700 hover:to-pink-700 transition-all duration-200 transform hover:scale-105"
+                    <p className="text-emerald-300 text-sm mb-4">Want to be first to try our new features?</p>
+                    <div className="flex flex-col space-y-3">
+                      <input
+                        type="email"
+                        value={emailInput}
+                        onChange={(e) => setEmailInput(e.target.value)}
+                        placeholder="Enter your email"
+                        className="px-4 py-2 rounded-lg bg-black/30 border border-purple-500/30 text-white placeholder-gray-400 focus:border-amber-500/60 focus:outline-none"
+                      />
+                      <button 
+                        onClick={handleEmailSubmit}
+                        disabled={!emailInput.trim()}
+                        className="bg-gradient-to-r from-purple-600 to-pink-600 px-6 py-3 rounded-full text-sm font-medium hover:from-purple-700 hover:to-pink-700 transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Get Early Access
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* 邮箱提交成功 */}
+                {emailSubmitted && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="border-t border-purple-500/20 pt-4 mt-4"
+                  >
+                    <p className="text-emerald-300 text-sm mb-4">Thank you! You'll be the first to know about new features. ✨</p>
+                    <button 
+                      onClick={handleShare}
+                      className="bg-gradient-to-r from-purple-600 to-pink-600 px-6 py-3 rounded-full text-sm font-medium hover:from-purple-700 hover:to-pink-700 transition-all duration-200 transform hover:scale-105"
+                    >
+                      Share with Friends ✨
+                    </button>
+                  </motion.div>
+                )}
+
+                {/* 低评分反馈收集 */}
+                {showFeedbackForm && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="border-t border-purple-500/20 pt-4 mt-4"
+                  >
+                    <p className="text-gray-300 text-sm mb-4">Help us improve. What went wrong?</p>
+                    <div className="grid grid-cols-1 gap-2">
+                      {[
+                        'Reading was not accurate',
+                        'Too generic, not personal',
+                        'Loading took too long',
+                        'Interface was confusing',
+                        'Other technical issue'
+                      ].map((feedback) => (
+                        <button
+                          key={feedback}
+                          onClick={() => handleFeedbackSelect(feedback)}
+                          className={`px-4 py-2 rounded-lg text-sm transition-all ${
+                            selectedFeedback === feedback 
+                              ? 'bg-purple-600 text-white' 
+                              : 'bg-black/30 text-gray-300 hover:bg-purple-600/30'
+                          }`}
                         >
-                          Share with Friends ✨
+                          {feedback}
                         </button>
-                      </div>
-                    ) : (
-                      <p className="text-gray-400 text-sm">Thank you for your feedback! 🙏</p>
+                      ))}
+                    </div>
+                    {selectedFeedback && (
+                      <p className="text-gray-400 text-xs mt-3">Thank you for your feedback! 🙏</p>
                     )}
                   </motion.div>
+                )}
+
+                {/* 默认状态 - 还没评分时 */}
+                {userRating > 0 && !showEmailForm && !showFeedbackForm && (
+                  <p className="text-gray-400 text-sm">Thank you for your feedback! 🙏</p>
                 )}
               </div>
             </motion.div>
