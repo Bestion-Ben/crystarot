@@ -1041,7 +1041,7 @@ const ArcaneCards = () => {
             transition={{ delay: currentPage === 1 ? 0.1 : 0, duration: 0.4 }}
           >
             <h1 className="text-3xl sm:text-4xl font-bold mb-2 bg-gradient-to-r from-amber-400 via-orange-300 to-amber-500 bg-clip-text text-transparent">
-              ⟨ Crystarot ⟩
+               Crystarot 
             </h1>
             <p className="text-base sm:text-lg opacity-90 font-serif text-amber-100/80">
               Ancient Wisdom, Modern Insight
