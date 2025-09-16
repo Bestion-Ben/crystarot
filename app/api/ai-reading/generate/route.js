@@ -1,8 +1,9 @@
 export async function POST(request) {
   try {
-    const { cards, question, planType } = await request.json();
+    // ✅ 接收用户上下文信息
+    const { cards, question, planType, userContext } = await request.json();
     
-    // éªŒè¯å¿…éœ€å‚æ•°
+    // 验证必需参数
     if (!cards || !cards.length || !question) {
       return Response.json({ 
         error: 'Missing required parameters',
@@ -10,22 +11,24 @@ export async function POST(request) {
       }, { status: 400 });
     }
 
-    console.log('ðŸ”® AI Reading Request:', { 
+    console.log('🔮 AI Reading Request:', { 
       cardCount: cards.length, 
       planType, 
-      questionLength: question.length 
+      questionLength: question.length,
+      userEmotion: userContext?.emotion,
+      userScenario: userContext?.scenario,
+      category: userContext?.category
     });
 
-    // ç”ŸæˆAIè§£è¯»
-    const reading = await generateAIReading(cards, question, planType);
+    // ✅ 传递完整用户上下文给AI解读生成函数
+    const reading = await generateAIReading(cards, question, planType, userContext);
     
-    console.log('âœ… AI Reading Generated Successfully');
-    console.log('ðŸ“¤ About to send response:', reading); // ðŸ‘ˆ åŠ è¿™ä¸€è¡Œ
+    console.log('✅ AI Reading Generated Successfully');
     
     return Response.json(reading);
     
   } catch (error) {
-    console.error('âŒ AI Reading Generation Error:', error);
+    console.error('❌ AI Reading Generation Error:', error);
     
     return Response.json({ 
       error: 'AI service temporarily unavailable',
@@ -35,26 +38,26 @@ export async function POST(request) {
   }
 }
 
-// AIè§£è¯»ç”Ÿæˆæ ¸å¿ƒé€»è¾‘
-async function generateAIReading(cards, question, planType) {
-  const card = cards[0]; // ä¸»è¦ä½¿ç”¨ç¬¬ä¸€å¼ ç‰Œ
-  const questionType = getQuestionType(question);
+// ✅ 优化后的AI解读生成核心逻辑
+async function generateAIReading(cards, question, planType, userContext = {}) {
+  const card = cards[0];
   
-  // æ ¹æ®å¥—é¤ç±»åž‹é€‰æ‹©ä¸åŒçš„prompt
-  const prompt = buildPrompt(card, question, questionType, planType);
+  // ✅ 构建优化后的prompt，包含用户上下文
+  const prompt = buildOptimizedPrompt(card, question, userContext);
   
-  console.log('ðŸ§  Calling Deepseek API...');
+  console.log('🧠 Generating personalized reading with user context...');
   
   try {
-    // è°ƒç”¨Deepseek API
-    return await callDeepseekAPI(prompt);
+    const response = await callDeepseekAPI(prompt);
+    console.log('✅ AI Reading Generated Successfully');
+    return response;
   } catch (error) {
-    console.error('ðŸ’« Deepseek API failed:', error.message);
-    throw error; // è®©ä¸Šå±‚å¤„ç†é™çº§
+    console.error('💫 AI reading generation failed:', error.message);
+    throw error;
   }
 }
 
-// Deepseek APIè°ƒç”¨
+// ✅ 优化后的Deepseek API调用 - 更温和的系统消息
 async function callDeepseekAPI(prompt) {
   const apiKey = process.env.DEEPSEEK_API_KEY;
   
@@ -62,7 +65,7 @@ async function callDeepseekAPI(prompt) {
     throw new Error('DEEPSEEK_API_KEY not configured');
   }
 
-  const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+  const response = await fetch('https://api.deepseek.com/chat/completions', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${apiKey}`,
@@ -73,21 +76,37 @@ async function callDeepseekAPI(prompt) {
       messages: [
         {
           role: 'system',
-          content: 'You are a wise and empathetic tarot reader with deep knowledge of symbolism and human psychology. Provide insightful, practical guidance that helps people navigate their life challenges.'
+          content: `You are a wise and intuitive tarot reader who offers gentle guidance through card symbolism.
+
+You help people gain new perspectives on their questions with warmth and respect for their free will. Your insights feel personally relevant without being presumptuous or judgmental.
+
+Your approach:
+• Connect the card's imagery to their specific situation naturally
+• Acknowledge their feelings and context when provided  
+• Offer illuminating possibilities rather than definitive statements
+• Provide gentle guidance that empowers their own decision-making
+• Keep responses concise and impactful
+
+You are like a thoughtful friend who helps them see their own wisdom more clearly.`
         },
         {
           role: 'user',
           content: prompt
         }
       ],
-      max_tokens: 500,
-      temperature: 0.7,
+      max_tokens: 400,
+      temperature: 0.8,
       stream: false
     }),
   });
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
+    console.error('❌ API Error Details:', {
+      status: response.status,
+      statusText: response.statusText,
+      errorData
+    });
     throw new Error(`Deepseek API error ${response.status}: ${errorData.error?.message || 'Unknown error'}`);
   }
 
@@ -98,95 +117,110 @@ async function callDeepseekAPI(prompt) {
   }
   
   const content = data.choices[0].message.content;
-  console.log('ðŸ“œ Raw AI Response Length:', content.length);
+  console.log('📜 Raw AI Response Length:', content.length);
   
   return parseAIResponse(content);
 }
 
-// æž„å»ºä¸åŒå¥—é¤çš„Prompt
-function buildPrompt(card, question, questionType, planType) {
-  const cardContext = `Card: ${card.name} (${card.upright ? 'Upright' : 'Reversed'})
-Element: ${card.element}
-Traditional Meaning: ${card.meaning}
-Question Category: ${questionType}
-User Question: "${question}"`;
+// ✅ 全新优化的prompt构建 - 三段式结构：牌意→关联→指导
+function buildOptimizedPrompt(card, question, userContext = {}) {
+  const cardInfo = `Card Drawn: ${card.name} (${card.upright ? 'Upright' : 'Reversed'})
+Card Element: ${card.element}
+Traditional Meaning: ${card.meaning}`;
 
-  if (planType === 'quick') {
-    return `${cardContext}
+  const userInfo = `User's Question: "${question}"
+${userContext.emotion ? `Current Feeling: ${userContext.emotion}` : ''}
+${userContext.scenario ? `Situation Context: ${userContext.scenario}` : ''}
+${userContext.category ? `Question Area: ${userContext.category}` : ''}`;
 
-Please provide a focused, actionable tarot reading in exactly this format:
+  return `${cardInfo}
 
-READING:
-[2-3 sentences of direct, practical guidance related to their specific question. Be encouraging but realistic.]
+${userInfo}
 
-KEY_INSIGHT:
-[One powerful, memorable sentence that captures the essence of the guidance]
+Please provide a structured tarot reading with clear educational flow:
 
-Keep the tone warm, wise, and hopeful. Focus on actionable advice they can apply immediately.`;
+Format your response as:
 
-  } else if (planType === 'deep') {
-    return `${cardContext}
+CARD_MEANING:
+[Explain what this card represents in tarot tradition. What themes, energies, or life situations does it typically address? Keep to 30-40 words, accessible language.]
 
-Please provide a comprehensive 3-card style reading in exactly this format:
+CONNECTION:
+[Explain how this specific card relates to their question and current situation. Why did this card appear for this question? Connect the card's themes to their context. 40-50 words.]
 
-READING:
-[4-5 sentences covering: 1) What this card reveals about their current situation, 2) The deeper lesson or pattern involved, 3) Specific guidance for moving forward, 4) Timeline or next steps to expect]
-
-KEY_INSIGHT:
-[A profound, memorable insight that could be life-changing for them]
-
-Provide deep psychological insight while remaining practical and actionable. Address both the emotional and practical aspects of their situation.`;
-
-  } else { // full analysis
-    return `${cardContext}
-
-Please provide a master-level tarot analysis in exactly this format:
-
-READING:
-[6-7 sentences covering: 1) Deep spiritual significance of this card for their journey, 2) Hidden influences and subconscious patterns, 3) How this connects to their life purpose, 4) Practical steps for transformation, 5) Long-term spiritual guidance, 6) Integration advice for lasting change]
+GUIDANCE:
+[Based on the card's message, what practical guidance or perspective can you offer for their situation? Be supportive and actionable. Acknowledge their feelings if provided. 40-50 words.]
 
 KEY_INSIGHT:
-[A transformative spiritual insight that reveals a deeper truth about their path]
+[One powerful, quotable takeaway that captures the essence of this reading - maximum 15 words.]
 
-Provide profound spiritual wisdom while keeping it grounded and applicable. Help them see the bigger picture of their soul's journey.`;
-  }
+Guidelines:
+• Use clear, conversational language that educates while guiding
+• Be warm and supportive, not mystical or dramatic
+• Help them understand WHY this card is relevant to their question
+• Focus on possibilities and gentle guidance rather than predictions
+• Make each section distinct and valuable
+• Avoid assumptions about hidden motives or psychological analysis
+
+Remember: The goal is to help them understand both the card's wisdom and how it applies to their specific situation.`;
 }
 
-// è§£æžAIå“åº”
+// ✅ 优化的解析函数 - 处理三段式结构
 function parseAIResponse(content) {
   try {
-    // æå–READINGå’ŒKEY_INSIGHTéƒ¨åˆ†
-    const readingMatch = content.match(/READING:\s*([\s\S]*?)(?=KEY_INSIGHT:|$)/i);
+    const cardMeaningMatch = content.match(/CARD_MEANING:\s*([\s\S]*?)(?=CONNECTION:|$)/i);
+    const connectionMatch = content.match(/CONNECTION:\s*([\s\S]*?)(?=GUIDANCE:|$)/i);
+    const guidanceMatch = content.match(/GUIDANCE:\s*([\s\S]*?)(?=KEY_INSIGHT:|$)/i);
     const insightMatch = content.match(/KEY_INSIGHT:\s*([\s\S]*?)$/i);
     
-    const reading = readingMatch ? readingMatch[1].trim() : content;
-    const keyInsight = insightMatch ? insightMatch[1].trim() : "Trust in the wisdom revealed by this moment";
+    const cardMeaning = cardMeaningMatch ? cardMeaningMatch[1].trim() : '';
+    const connection = connectionMatch ? connectionMatch[1].trim() : '';
+    const guidance = guidanceMatch ? guidanceMatch[1].trim() : '';
+    const keyInsight = insightMatch ? insightMatch[1].trim() : extractFallbackInsight(content);
     
-    // æ¸…ç†æ–‡æœ¬
-    const cleanReading = reading.replace(/^\[|\]$/g, '').trim();
+    // 简单清理，移除方括号
+    const cleanCardMeaning = cardMeaning.replace(/^\[|\]$/g, '').trim();
+    const cleanConnection = connection.replace(/^\[|\]$/g, '').trim();
+    const cleanGuidance = guidance.replace(/^\[|\]$/g, '').trim();
     const cleanInsight = keyInsight.replace(/^\[|\]$/g, '').trim();
     
+    // 组合完整的解读，如果某部分缺失则跳过
+    const readingParts = [
+      cleanCardMeaning,
+      cleanConnection, 
+      cleanGuidance
+    ].filter(part => part.length > 0);
+    
+    const fullReading = readingParts.length > 0 ? readingParts.join('\n\n') : content.slice(0, 300);
+    
     return {
-      reading: cleanReading,
+      reading: fullReading,
+      cardMeaning: cleanCardMeaning,
+      connection: cleanConnection,
+      guidance: cleanGuidance,
       keyInsight: cleanInsight,
       provider: 'deepseek'
     };
   } catch (error) {
-    console.error('ðŸ“ Error parsing AI response:', error);
+    console.error('🔍 Error parsing AI response:', error);
+    
+    // 简单fallback，保持内容价值
     return {
-      reading: content.slice(0, 300), // é™çº§ï¼šä½¿ç”¨åŽŸå§‹å†…å®¹çš„å‰300å­—ç¬¦
-      keyInsight: "The universe guides your path forward",
+      reading: content.slice(0, 300).trim(),
+      keyInsight: extractFallbackInsight(content),
       provider: 'deepseek'
     };
   }
 }
 
-// èŽ·å–é—®é¢˜ç±»åž‹
-function getQuestionType(question) {
-  if (!question) return 'spiritual';
-  const lowerQuestion = question.toLowerCase();
-  if (lowerQuestion.includes('love') || lowerQuestion.includes('relationship') || lowerQuestion.includes('romantic')) return 'love';
-  if (lowerQuestion.includes('career') || lowerQuestion.includes('job') || lowerQuestion.includes('work') || lowerQuestion.includes('money') || lowerQuestion.includes('professional')) return 'career';
-  if (lowerQuestion.includes('growth') || lowerQuestion.includes('personal') || lowerQuestion.includes('develop') || lowerQuestion.includes('potential')) return 'growth';
-  return 'spiritual';
+// ✅ 辅助函数：从内容中提取关键洞察
+function extractFallbackInsight(content) {
+  const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 10);
+  
+  // 寻找简洁有力的句子
+  const powerfulSentence = sentences.find(sentence => {
+    const trimmed = sentence.trim();
+    return trimmed.length > 15 && trimmed.length < 80;
+  });
+  
+  return powerfulSentence ? powerfulSentence.trim() : "Trust your inner wisdom to guide you forward";
 }

@@ -2,7 +2,7 @@ import './globals.css';
 import Script from 'next/script';
 
 export const metadata = {
-  title: 'ArcaneCards - AI Tarot Reading',
+  title: 'Crystarot - AI Tarot Reading',
   description: 'Ancient Wisdom, Modern Insight',
 };
 
@@ -30,7 +30,7 @@ export default function RootLayout({ children }) {
                   gtag('js', new Date());
                   
                   gtag('config', '${GA_MEASUREMENT_ID}', {
-                    page_title: 'ArcaneCards - AI Tarot Reading',
+                    page_title: 'Crystarot - AI Tarot Reading',
                     page_location: window.location.href,
                     send_page_view: true,
                     // 增强电商功能

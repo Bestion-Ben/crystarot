@@ -37,6 +37,7 @@ const ArcaneCards = () => {
   const [emailSubmitted, setEmailSubmitted] = useState(false);
   const [selectedFeedback, setSelectedFeedback] = useState('');
   const [showFeedbackForm, setShowFeedbackForm] = useState(false);
+  const [readingError, setReadingError] = useState(null);
   
   const ShuffleText = () => {
     const [textIndex, setTextIndex] = useState(0);
@@ -610,39 +611,48 @@ const ArcaneCards = () => {
 
   // 🎯 核心事件2,3,4,8: 生成并显示解读 - 核心版本
   const generateAndShowReading = async (cards) => {
-    const readingStartTime = Date.now();
-    const finalQuestion = selectedQuestion?.finalQuestion || selectedQuestion?.question || 'What guidance do I need?';
+  const readingStartTime = Date.now();
+  const finalQuestion = selectedQuestion?.finalQuestion || selectedQuestion?.question || 'What guidance do I need?';
+  
+  try {
+    const result = await generateReading(cards, finalQuestion, 'quick');
+    setReadingResult(result);
     
-    try {
-      const result = await generateReading(cards, finalQuestion, 'quick');
-      setReadingResult(result);
-      
-      // 🎯 核心事件4: 记录解读生成耗时
-      trackUserAction(EVENTS.READING_GENERATION_TIME, {
-        duration: Date.now() - readingStartTime,
-        method: result.source || 'unknown',
-        cardName: cards[0]?.name
-      });
-      
-      // 🎯 核心事件8: 解读完成
-      trackUserAction(EVENTS.READING_COMPLETED, {
-        cardName: cards[0]?.name,
-        cardUpright: cards[0]?.upright,
-        readingSource: result.source,
-        generationTime: Date.now() - readingStartTime,
-        questionLength: finalQuestion.length
-      });
-      
-      setCurrentPage(4);
-      setHasCompletedFreeReading(true);
-      
-    } catch (error) {
-      console.error('Reading generation error:', error);
-      // 简化错误处理，不追踪详细错误事件
-    }
-  };
+    // 🎯 核心事件4: 记录解读生成耗时
+    trackUserAction(EVENTS.READING_GENERATION_TIME, {
+      duration: Date.now() - readingStartTime,
+      method: result.source || 'unknown',
+      cardName: cards[0]?.name
+    });
+    
+    // 🎯 核心事件8: 解读完成
+    trackUserAction(EVENTS.READING_COMPLETED, {
+      cardName: cards[0]?.name,
+      cardUpright: cards[0]?.upright,
+      readingSource: result.source,
+      generationTime: Date.now() - readingStartTime,
+      questionLength: finalQuestion.length
+    });
+    
+    setCurrentPage(4);
+    setHasCompletedFreeReading(true);
+    
+  } catch (error) {
+    console.error('Reading generation error:', error);
+    
+    // ✅ 添加错误状态显示
+    setReadingResult({
+      error: true,
+      message: error.message,
+      canRetry: true
+    });
+    
+    // 依然跳转到结果页，但显示错误状态
+    setCurrentPage(4);
+  }
+};
 
-  // 🎯 核心事件2,3: AI解读生成系统 - 简化版本
+  // 🎯 核心事件2,3: AI解读生成系统 - 移除降级版本
   const generateReading = async (cards, question) => {
     const planType = 'quick';
     console.log('🔥 Core Events Version Called!');
@@ -651,7 +661,6 @@ const ArcaneCards = () => {
     const readingStartTime = Date.now();
     const finalQuestion = selectedQuestion?.finalQuestion || selectedQuestion?.question || 'What guidance do I need?';
     
-    // 尝试AI API - 简化版本
     try {
       console.log('🚀 Calling AI API...');
       
@@ -664,7 +673,16 @@ const ArcaneCards = () => {
         body: JSON.stringify({
           cards: cards,
           question: finalQuestion,
-          planType: planType
+          planType: planType,
+          // ✅ 添加用户上下文信息
+          userContext: {
+            emotion: selectedEmotion?.title || null,
+            emotionId: selectedEmotion?.id || null,
+            scenario: selectedScenario?.title || null,
+            scenarioId: selectedScenario?.id || null,
+            category: selectedScenario?.id || getQuestionCategory(finalQuestion),
+            isCustomQuestion: selectedQuestion?.isCustom || false
+          }
         }),
         signal: controller.signal
       });
@@ -691,12 +709,13 @@ const ArcaneCards = () => {
         };
         
       } else {
-        console.log(`⚠️ API returned ${response.status}, falling back to local`);
-        throw new Error(`API returned ${response.status}`);
+        console.log(`⚠️ API returned ${response.status}, service unavailable`);
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.userFriendlyMessage || `服务暂时不可用 (${response.status})`);
       }
       
     } catch (error) {
-      console.log('🔄 Network error, using local algorithm:', error.message);
+      console.log('❌ AI Service failed:', error.message);
       
       // 🎯 核心事件3: AI解读失败
       trackUserAction(EVENTS.AI_READING_FAILED, {
@@ -706,200 +725,23 @@ const ArcaneCards = () => {
         errorMessage: error.message
       });
 
-      // 使用本地算法
-      const localResult = generateLocalReading(cards, finalQuestion, planType);
+      // 抛出用户友好的错误信息
+      const userMessage = error.name === 'AbortError' 
+        ? '🔮 塔罗大师冥想时间过长，请稍后重试' 
+        : '🌟 宇宙能量暂时中断，请重新连接';
       
-      return {
-        ...localResult,
-        source: 'local',
-        fallbackReason: error.message
-      };
+      throw new Error(userMessage);
     }
   };
 
-  // 本地解读生成算法（保持完整不变）
-  const generateLocalReading = (cards, question, planType) => {
-    if (!cards || cards.length === 0) {
-      return {
-        reading: "The cards are still revealing themselves to you. Please select your cards first.",
-        keyInsight: "Patience brings wisdom"
-      };
-    }
-
-    const card = cards[0];
-    const questionType = getQuestionType(question);
-    
-    // 完整的22张大阿尔卡纳解读数据库 - 保持不变
-    const cardDatabase = {
-      'The Fool': {
-        love: {
-          upright: "A beautiful new romantic chapter is unfolding before you! The Fool suggests you're ready to take a leap of faith in love. If you're single, an unexpected encounter could spark something magical. Trust your heart's calling and don't let past disappointments hold you back. Your soul is ready for authentic, adventurous love.",
-          reversed: "Love requires patience right now. The Fool reversed suggests you may be rushing into relationships without proper foundation. Take time to heal from past wounds and understand what you truly want in a partner. Slow down and let genuine connections develop naturally."
-        },
-        career: {
-          upright: "Exciting career opportunities are calling! The Fool indicates it's time to pursue that dream job, start your own business, or pivot to something more aligned with your passion. Trust your innovative ideas - they have the potential to lead somewhere amazing. Take calculated risks now.",
-          reversed: "Career decisions need more careful planning. The Fool reversed warns against impulsive job changes or risky investments. Do your research, seek mentorship, and create a solid foundation before making major professional moves. Patience will serve you better than haste."
-        },
-        growth: {
-          upright: "You're standing at the threshold of incredible personal transformation! The Fool encourages you to embrace beginner's mind and trust your journey of self-discovery. This is your time to break free from limiting beliefs and explore new aspects of yourself. Adventure awaits!",
-          reversed: "Personal growth is happening, but requires more self-reflection. The Fool reversed suggests you may be avoiding important inner work. Take time to understand your patterns and motivations before making major life changes. True growth comes from conscious choice, not impulsive action."
-        },
-        spiritual: {
-          upright: "The universe is calling you toward a profound spiritual awakening! The Fool represents the beginning of a sacred journey. Trust the signs, synchronicities, and inner knowing that's emerging. You're being guided toward your highest truth - have faith in the path unfolding.",
-          reversed: "Your spiritual journey needs grounding and discernment. The Fool reversed suggests you may be too focused on external spiritual experiences while neglecting inner wisdom. Balance mystical exploration with practical application. True spirituality transforms daily life."
-        }
-      },
-      
-      'The Magician': {
-        love: {
-          upright: "You have incredible power to manifest the love you desire! The Magician shows you possess all the tools needed for romantic success. If you're in a relationship, it's time to actively create positive changes. Single? Your magnetic energy is attracting someone special. Take inspired action.",
-          reversed: "Romantic manipulation or self-deception may be present. The Magician reversed warns against using your charm to control others or lying to yourself about a relationship's potential. Focus on authentic communication and honest self-expression instead."
-        },
-        career: {
-          upright: "Your professional magic is at its peak! The Magician indicates you have all the skills, resources, and connections needed to achieve your career goals. It's time to take decisive action, present your ideas boldly, and make things happen. Your manifesting power is strong right now.",
-          reversed: "Your talents aren't being used effectively. The Magician reversed suggests missed opportunities, lack of focus, or misuse of your abilities. Reassess your goals and make sure you're applying your skills in the right direction. Avoid manipulation or cutting corners."
-        },
-        growth: {
-          upright: "You're becoming the master of your own destiny! The Magician represents your growing ability to consciously create your reality. You have all the elements needed for transformation - now it's time to combine them skillfully. Trust in your personal power and take action.",
-          reversed: "Your personal power is scattered or misdirected. The Magician reversed indicates you may be doubting your abilities or using them for the wrong purposes. Reconnect with your authentic goals and focus your energy more effectively."
-        },
-        spiritual: {
-          upright: "You're learning to work with divine energy as a co-creator! The Magician shows your growing ability to channel spiritual power into material reality. Your prayers, intentions, and rituals are particularly potent now. You're bridging the gap between heaven and earth.",
-          reversed: "Spiritual bypassing or misuse of metaphysical knowledge may be happening. The Magician reversed warns against using spiritual practices for ego gratification or manipulation. Return to humble service and authentic spiritual development."
-        }
-      },
-      // 这里继续添加其他21张牌的完整数据... 为了节省空间，我先提供这两张的示例
-      // 实际代码中应该包含所有22张牌的完整解读
-    };
-
-    const cardData = cardDatabase[card.name];
-    let reading = '';
-    let keyInsight = '';
-
-    if (cardData && cardData[questionType]) {
-      const orientation = card.upright ? 'upright' : 'reversed';
-      reading = cardData[questionType][orientation];
-      keyInsight = generateKeyInsight(card, questionType, orientation);
-    } else {
-      // 通用解读逻辑（备用）
-      const baseReading = `The ${card.name} appears with ${card.element} energy flowing ${card.upright ? 'harmoniously' : 'with some restriction'}. ${card.meaning}. `;
-      const contextualGuidance = getContextualGuidance(questionType, card.upright, card.element);
-      reading = baseReading + contextualGuidance;
-      keyInsight = generateGenericKeyInsight(card, questionType);
-    }
-
-    return { reading, keyInsight };
-  };
-
-  // 生成个性化的关键洞察（保持不变）
-  const generateKeyInsight = (card, questionType, orientation) => {
-    // 简化版，只包含几个主要牌的洞察
-    const insights = {
-      'The Fool': {
-        love: { 
-          upright: "Trust your heart's adventure - love rewards the brave",
-          reversed: "Slow down and heal before leaping into love"
-        },
-        career: {
-          upright: "Your innovative ideas are your golden ticket",
-          reversed: "Plan first, then pursue your professional dreams"
-        },
-        growth: {
-          upright: "Embrace the unknown - it holds your greatest gifts",
-          reversed: "Reflect on recent lessons before moving forward"
-        },
-        spiritual: {
-          upright: "The universe is calling you to a sacred journey",
-          reversed: "Ground your spiritual insights in daily practice"
-        }
-      },
-      'The Magician': {
-        love: {
-          upright: "You have all the tools needed to create lasting love",
-          reversed: "Use your charm authentically, not manipulatively"
-        },
-        career: {
-          upright: "Your moment to shine professionally has arrived",
-          reversed: "Focus your scattered talents for maximum impact"
-        },
-        growth: {
-          upright: "You are the master of your own transformation",
-          reversed: "Reconnect with your authentic personal power"
-        },
-        spiritual: {
-          upright: "You're learning to co-create with divine energy",
-          reversed: "Return to humble spiritual service and growth"
-        }
-      }
-      // 可以继续添加其他牌的洞察...
-    };
-
-    if (insights[card.name] && insights[card.name][questionType]) {
-      return insights[card.name][questionType][orientation];
-    }
-    
-    return generateGenericKeyInsight(card, questionType);
-  };
-
-  // 生成通用关键洞察（备用）
-  const generateGenericKeyInsight = (card, questionType) => {
-    const elementInsights = {
-      'Fire': {
-        love: card.upright ? "Passion and action create romantic breakthroughs" : "Cool down emotional reactions to find love's truth",
-        career: card.upright ? "Bold action and leadership advance your career" : "Temper your professional ambition with patience",
-        growth: card.upright ? "Dynamic energy fuels rapid personal transformation" : "Channel your inner fire more constructively",
-        spiritual: card.upright ? "Spiritual passion ignites divine connection" : "Balance spiritual enthusiasm with grounded practice"
-      },
-      'Water': {
-        love: card.upright ? "Emotional depth and intuition guide love's flow" : "Heal emotional wounds to restore love's natural current",
-        career: card.upright ? "Trust your professional instincts and emotional intelligence" : "Don't let emotions cloud your career judgment",
-        growth: card.upright ? "Deep feeling and intuition accelerate personal growth" : "Process emotions healthily to continue growing",
-        spiritual: card.upright ? "Spiritual intuition and emotional wisdom guide your path" : "Balance spiritual sensitivity with practical grounding"
-      },
-      'Air': {
-        love: card.upright ? "Clear communication and mental connection strengthen love" : "Overcome overthinking to connect heart-to-heart",
-        career: card.upright ? "Ideas, communication, and mental agility drive career success" : "Stop overthinking and take practical career action",
-        growth: card.upright ? "New perspectives and learning accelerate your development" : "Balance mental analysis with intuitive knowing",
-        spiritual: card.upright ? "Spiritual wisdom and higher consciousness expand your awareness" : "Ground spiritual insights in practical daily application"
-      },
-      'Earth': {
-        love: card.upright ? "Practical love and stable commitment build lasting relationships" : "Address material concerns affecting your love life",
-        career: card.upright ? "Steady effort and practical skills create career security" : "Focus on concrete actions rather than just planning",
-        growth: card.upright ? "Grounded practice and patience create lasting personal change" : "Take practical steps instead of just dreaming of change",
-        spiritual: card.upright ? "Embodied spirituality integrates wisdom into daily life" : "Ground your spiritual insights through practical service"
-      }
-    };
-
-    return elementInsights[card.element][questionType];
-  };
-
-  // 获取问题类型
-  const getQuestionType = (question) => {
+  // 辅助函数：基于问题文本推断类别
+  const getQuestionCategory = (question) => {
     if (!question) return 'spiritual';
     const lowerQuestion = question.toLowerCase();
     if (lowerQuestion.includes('love') || lowerQuestion.includes('relationship') || lowerQuestion.includes('romantic')) return 'love';
-    if (lowerQuestion.includes('career') || lowerQuestion.includes('job') || lowerQuestion.includes('work') || lowerQuestion.includes('money') || lowerQuestion.includes('professional')) return 'career';
-    if (lowerQuestion.includes('growth') || lowerQuestion.includes('personal') || lowerQuestion.includes('develop') || lowerQuestion.includes('potential')) return 'growth';
+    if (lowerQuestion.includes('career') || lowerQuestion.includes('job') || lowerQuestion.includes('work') || lowerQuestion.includes('money')) return 'career';
+    if (lowerQuestion.includes('growth') || lowerQuestion.includes('personal') || lowerQuestion.includes('develop')) return 'growth';
     return 'spiritual';
-  };
-
-  // 获取情境化指导（备用函数）
-  const getContextualGuidance = (questionType, isUpright, element) => {
-    const guidance = {
-      love: isUpright ? 
-        `Your ${element.toLowerCase()} energy brings positive romantic flow. Trust your heart's wisdom and allow love to unfold naturally. The universe supports authentic connections that honor your true self.` :
-        `Your ${element.toLowerCase()} energy needs balancing in love. Take time to understand what patterns need healing before pursuing new romantic connections. Self-love creates the foundation for all other love.`,
-      career: isUpright ?
-        `Your ${element.toLowerCase()} energy creates professional opportunities. This is an excellent time to pursue career goals that align with your authentic talents and passions. Trust your unique professional gifts.` :
-        `Your ${element.toLowerCase()} energy requires more focus in your career. Reassess your professional direction and ensure your work aligns with your deeper values and long-term vision for success.`,
-      growth: isUpright ?
-        `Your ${element.toLowerCase()} energy supports powerful personal transformation. Embrace the changes occurring within you and trust that this growth serves your highest evolution and authentic self-expression.` :
-        `Your ${element.toLowerCase()} energy needs more conscious direction for growth. Identify what patterns or beliefs are limiting you and take concrete steps to transform them into sources of strength.`,
-      spiritual: isUpright ?
-        `Your ${element.toLowerCase()} energy enhances spiritual connection and divine guidance. This is a time of heightened spiritual awareness and the potential for profound spiritual insights and experiences.` :
-        `Your ${element.toLowerCase()} energy requires more grounding in spiritual practice. Balance your spiritual aspirations with practical application and ensure your spiritual growth serves your daily life and service to others.`
-    };
-    return guidance[questionType];
   };
 
   // 🎯 核心事件6: 处理用户评分
@@ -1041,7 +883,7 @@ const ArcaneCards = () => {
             transition={{ delay: currentPage === 1 ? 0.1 : 0, duration: 0.4 }}
           >
             <h1 className="text-3xl sm:text-4xl font-bold mb-2 bg-gradient-to-r from-amber-400 via-orange-300 to-amber-500 bg-clip-text text-transparent">
-              ⟨ Crystarot ⟩
+               Crystarot 
             </h1>
             <p className="text-base sm:text-lg opacity-90 font-serif text-amber-100/80">
               Ancient Wisdom, Modern Insight
@@ -1864,6 +1706,7 @@ const ArcaneCards = () => {
               }}
               transition={{ delay: currentPage === 4 ? 0.1 : 0, duration: 0.5 }}
             >
+
               <h2 className="text-2xl font-bold text-amber-100 mb-2">Your Reading Revealed</h2>
               <div className="w-16 h-px bg-gradient-to-r from-transparent via-amber-400 to-transparent mx-auto"></div>
             </motion.div>
@@ -1917,74 +1760,101 @@ const ArcaneCards = () => {
               }}
               transition={{ delay: currentPage === 4 ? 0.4 : 0, duration: 0.5 }}
             >
-              {/* 主要解读内容 - 重新设计格式 */}
-              <div className="bg-black/20 backdrop-blur-sm rounded-2xl border border-emerald-500/20 mb-6 overflow-hidden">
-                {/* 内容标题 */}
-                <div className="bg-emerald-500/10 px-6 py-4 border-b border-emerald-500/20">
-                  <h4 className="text-emerald-200 font-semibold text-sm flex items-center">
-                    <span className="text-emerald-400 mr-2">📖</span>
-                    Your Tarot Guidance
-                  </h4>
-                </div>
-                
-                {/* 解读文本 - 优化排版 */}
-                <div className="p-6">
-                  <div className="space-y-6">
-                    {formatReading(readingResult?.reading || 'Your reading is being prepared...').map((paragraph, index) => (
-                      <motion.div 
-                        key={index}
-                        initial={{ opacity: 0, y: 15 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: currentPage === 4 ? 0.5 + index * 0.3 : 0 }}
-                        className="relative"
-                      >
-                        {/* 段落装饰 */}
-                        {index === 0 && (
-                          <div className="absolute -left-4 top-0 w-2 h-full bg-gradient-to-b from-emerald-400 to-transparent opacity-30 rounded-full"></div>
-                        )}
-                        
-                        <p className="text-gray-200 leading-7 text-base font-serif">
-                          {paragraph}
-                        </p>
-                        
-                        {/* 段落间分隔线 */}
-                        {index < formatReading(readingResult?.reading || '').length - 1 && (
-                          <div className="mt-6 flex justify-center">
-                            <div className="w-8 h-px bg-gradient-to-r from-transparent via-emerald-500/30 to-transparent"></div>
-                          </div>
-                        )}
-                      </motion.div>
-                    ))}
+              {readingResult?.error ? (
+                // 错误状态显示
+                <div className="bg-gradient-to-br from-red-900/30 to-purple-900/30 backdrop-blur-sm rounded-2xl border border-red-500/30 overflow-hidden">
+                  <div className="bg-red-500/10 px-6 py-4 border-b border-red-500/20">
+                    <h4 className="text-red-200 font-semibold text-sm flex items-center">
+                      <span className="text-red-400 mr-2">🔮</span>
+                      能量连接中断
+                    </h4>
                   </div>
-                </div>
-              </div>
-              
-              {/* Key Insight区域 - 独立卡片设计 */}
-              <motion.div 
-                className="bg-gradient-to-br from-amber-900/30 to-orange-900/30 backdrop-blur-sm rounded-2xl border border-amber-500/30 overflow-hidden"
-                animate={{ 
-                  opacity: currentPage === 4 ? 1 : 0
-                }}
-                transition={{ delay: currentPage === 4 ? 0.8 : 0, duration: 0.4 }}
-              >
-                {/* Insight标题区域 */}
-                <div className="bg-amber-500/10 px-6 py-4 border-b border-amber-500/20">
-                  <h5 className="text-amber-200 font-semibold text-sm flex items-center">
-                    <span className="text-amber-400 mr-2">✨</span>
-                    Key Insight
-                  </h5>
-                </div>
-                
-                {/* Insight内容 */}
-                <div className="p-6">
-                  <div className="relative">
-                    <div className="absolute -left-4 top-0 w-2 h-full bg-gradient-to-b from-amber-400 to-transparent opacity-40 rounded-full"></div>
-                    <p className="text-amber-100 font-serif italic text-base leading-7 pl-2">
-                      "{readingResult?.keyInsight || "Trust in the wisdom revealed by this moment"}"
+                  
+                  <div className="p-6 text-center">
+                    <div className="text-4xl mb-4">🌟</div>
+                    <p className="text-red-300 mb-6 leading-7">
+                      {readingResult.message}
                     </p>
+                    <button 
+                      onClick={() => generateAndShowReading([selectedCards[0]])}
+                      className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
+                    >
+                      重新连接塔罗能量
+                    </button>
                   </div>
                 </div>
-              </motion.div>
+              ) : (
+                <>
+                  {/* 主要解读内容 - 重新设计格式 */}
+                  <div className="bg-black/20 backdrop-blur-sm rounded-2xl border border-emerald-500/20 mb-6 overflow-hidden">
+                    {/* 内容标题 */}
+                    <div className="bg-emerald-500/10 px-6 py-4 border-b border-emerald-500/20">
+                      <h4 className="text-emerald-200 font-semibold text-sm flex items-center">
+                        <span className="text-emerald-400 mr-2">📖</span>
+                        Your Tarot Guidance
+                      </h4>
+                    </div>
+                    
+                    {/* 解读文本 - 优化排版 */}
+                    <div className="p-6">
+                      <div className="space-y-6">
+                        {formatReading(readingResult?.reading || 'Your reading is being prepared...').map((paragraph, index) => (
+                          <motion.div 
+                            key={index}
+                            initial={{ opacity: 0, y: 15 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: currentPage === 4 ? 0.5 + index * 0.3 : 0 }}
+                            className="relative"
+                          >
+                            {/* 段落装饰 */}
+                            {index === 0 && (
+                              <div className="absolute -left-4 top-0 w-2 h-full bg-gradient-to-b from-emerald-400 to-transparent opacity-30 rounded-full"></div>
+                            )}
+                            
+                            <p className="text-gray-200 leading-7 text-base font-serif">
+                              {paragraph}
+                            </p>
+                            
+                            {/* 段落间分隔线 */}
+                            {index < formatReading(readingResult?.reading || '').length - 1 && (
+                              <div className="mt-6 flex justify-center">
+                                <div className="w-8 h-px bg-gradient-to-r from-transparent via-emerald-500/30 to-transparent"></div>
+                              </div>
+                            )}
+                          </motion.div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Key Insight区域 - 独立卡片设计 */}
+                  <motion.div 
+                    className="bg-gradient-to-br from-amber-900/30 to-orange-900/30 backdrop-blur-sm rounded-2xl border border-amber-500/30 overflow-hidden"
+                    animate={{ 
+                      opacity: currentPage === 4 ? 1 : 0
+                    }}
+                    transition={{ delay: currentPage === 4 ? 0.8 : 0, duration: 0.4 }}
+                  >
+                    {/* Insight标题区域 */}
+                    <div className="bg-amber-500/10 px-6 py-4 border-b border-amber-500/20">
+                      <h5 className="text-amber-200 font-semibold text-sm flex items-center">
+                        <span className="text-amber-400 mr-2">✨</span>
+                        Key Insight
+                      </h5>
+                    </div>
+                    
+                    {/* Insight内容 */}
+                    <div className="p-6">
+                      <div className="relative">
+                        <div className="absolute -left-4 top-0 w-2 h-full bg-gradient-to-b from-amber-400 to-transparent opacity-40 rounded-full"></div>
+                        <p className="text-amber-100 font-serif italic text-base leading-7 pl-2">
+                          "{readingResult?.keyInsight || "Trust in the wisdom revealed by this moment"}"
+                        </p>
+                      </div>
+                    </div>
+                  </motion.div>
+                </>
+              )}
             </motion.div>
             
             {/* 🎯 核心事件6: 用户反馈区域 - 完全重写 */}
