@@ -6,7 +6,13 @@ import { Heart, Briefcase, Sprout, Sparkles, Star, ArrowRight, Share2, Save } fr
 import { EVENTS } from '../lib/constants/events';
 import { tracker } from '../lib/utils/tracking';
 
+
 const ArcaneCards = () => {
+  
+  const [isClientReady, setIsClientReady] = useState(false);
+  const [isLoadingReading, setIsLoadingReading] = useState(false);
+
+ 
   // ✅ 简化版追踪函数
   const trackUserAction = (eventName, data = {}) => {
     tracker.track(eventName, data);
@@ -38,7 +44,17 @@ const ArcaneCards = () => {
   const [selectedFeedback, setSelectedFeedback] = useState('');
   const [showFeedbackForm, setShowFeedbackForm] = useState(false);
   const [readingError, setReadingError] = useState(null);
-  
+   
+  // 在现有useEffect之前添加客户端准备检测
+  useEffect(() => {
+    // 确保在客户端完全准备好后才显示动画
+    const timer = setTimeout(() => {
+      setIsClientReady(true);
+    }, 100); // 短暂延迟确保DOM完全加载
+
+    return () => clearTimeout(timer);
+  }, []);
+
   const ShuffleText = () => {
     const [textIndex, setTextIndex] = useState(0);
     const texts = [
@@ -609,48 +625,185 @@ const ArcaneCards = () => {
     }, 1500);
   };
 
-  // 🎯 核心事件2,3,4,8: 生成并显示解读 - 核心版本
+  // 修改generateAndShowReading函数，添加loading状态
   const generateAndShowReading = async (cards) => {
-  const readingStartTime = Date.now();
-  const finalQuestion = selectedQuestion?.finalQuestion || selectedQuestion?.question || 'What guidance do I need?';
-  
-  try {
-    const result = await generateReading(cards, finalQuestion, 'quick');
-    setReadingResult(result);
+    const readingStartTime = Date.now();
+    const finalQuestion = selectedQuestion?.finalQuestion || selectedQuestion?.question || 'What guidance do I need?';
     
-    // 🎯 核心事件4: 记录解读生成耗时
-    trackUserAction(EVENTS.READING_GENERATION_TIME, {
-      duration: Date.now() - readingStartTime,
-      method: result.source || 'unknown',
-      cardName: cards[0]?.name
-    });
+    // 🎯 开始AI解读loading
+    setIsLoadingReading(true);
     
-    // 🎯 核心事件8: 解读完成
-    trackUserAction(EVENTS.READING_COMPLETED, {
-      cardName: cards[0]?.name,
-      cardUpright: cards[0]?.upright,
-      readingSource: result.source,
-      generationTime: Date.now() - readingStartTime,
-      questionLength: finalQuestion.length
-    });
+    try {
+      const result = await generateReading(cards, finalQuestion, 'quick');
+      setReadingResult(result);
+      
+      // 🎯 核心事件4: 记录解读生成耗时
+      trackUserAction(EVENTS.READING_GENERATION_TIME, {
+        duration: Date.now() - readingStartTime,
+        method: result.source || 'unknown',
+        cardName: cards[0]?.name
+      });
+      
+      // 🎯 核心事件8: 解读完成
+      trackUserAction(EVENTS.READING_COMPLETED, {
+        cardName: cards[0]?.name,
+        cardUpright: cards[0]?.upright,
+        readingSource: result.source,
+        generationTime: Date.now() - readingStartTime,
+        questionLength: finalQuestion.length
+      });
+      
+      setCurrentPage(4);
+      setHasCompletedFreeReading(true);
+      
+    } catch (error) {
+      console.error('Reading generation error:', error);
+      
+      setReadingResult({
+        error: true,
+        message: error.message,
+        canRetry: true
+      });
+      
+      setCurrentPage(4);
+    } finally {
+      // 🎯 结束loading状态
+      setIsLoadingReading(false);
+    }
+  };
+
+  // AI解读Loading动画组件
+  const ReadingLoadingAnimation = () => {
+    const [currentText, setCurrentText] = useState(0);
+    const [dots, setDots] = useState('');
     
-    setCurrentPage(4);
-    setHasCompletedFreeReading(true);
+    const loadingTexts = [
+      'Consulting the ancient wisdom',
+      'The cards whisper their secrets',
+      'Cosmic energies align',
+      'Your destiny unfolds',
+      'Universal knowledge flows'
+    ];
     
-  } catch (error) {
-    console.error('Reading generation error:', error);
+    useEffect(() => {
+      // 切换文案
+      const textInterval = setInterval(() => {
+        setCurrentText(prev => (prev + 1) % loadingTexts.length);
+      }, 2000);
+      
+      // 动态省略号
+      const dotsInterval = setInterval(() => {
+        setDots(prev => prev.length >= 3 ? '' : prev + '.');
+      }, 500);
+      
+      return () => {
+        clearInterval(textInterval);
+        clearInterval(dotsInterval);
+      };
+    }, []);
     
-    // ✅ 添加错误状态显示
-    setReadingResult({
-      error: true,
-      message: error.message,
-      canRetry: true
-    });
-    
-    // 依然跳转到结果页，但显示错误状态
-    setCurrentPage(4);
-  }
-};
+    return (
+      <motion.div 
+        className="text-center py-12"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+      >
+        {/* 旋转的塔罗牌动画 */}
+        <motion.div
+          className="w-20 h-32 mx-auto mb-6 bg-gradient-to-br from-purple-900 to-purple-800 rounded-lg border border-amber-500/30 overflow-hidden relative"
+          animate={{ 
+            rotateY: [0, 360],
+            scale: [1, 1.05, 1]
+          }}
+          transition={{ 
+            rotateY: { duration: 3, repeat: Infinity, ease: "linear" },
+            scale: { duration: 2, repeat: Infinity, ease: "easeInOut" }
+          }}
+        >
+          {/* 卡片发光效果 */}
+          <motion.div
+            className="absolute inset-0 bg-gradient-to-r from-amber-400/20 to-purple-400/20 rounded-lg"
+            animate={{ 
+              opacity: [0.3, 0.8, 0.3]
+            }}
+            transition={{ 
+              duration: 1.5, 
+              repeat: Infinity,
+              ease: "easeInOut"
+            }}
+          />
+          
+          {/* 卡片内容 */}
+          <div className="absolute inset-0 flex items-center justify-center">
+            <motion.div
+              className="text-4xl text-amber-400"
+              animate={{ 
+                rotate: [0, 15, -15, 0],
+                scale: [1, 1.1, 1]
+              }}
+              transition={{ 
+                duration: 2, 
+                repeat: Infinity,
+                ease: "easeInOut"
+              }}
+            >
+              🔮
+            </motion.div>
+          </div>
+        </motion.div>
+        
+        {/* 动态文案 */}
+        <motion.div
+          key={currentText}
+          className="mb-4"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          transition={{ duration: 0.5 }}
+        >
+          <h3 className="text-lg font-serif text-amber-200 mb-2">
+            {loadingTexts[currentText]}{dots}
+          </h3>
+        </motion.div>
+        
+        {/* 粒子效果 */}
+        <div className="relative h-16">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <motion.div
+              key={i}
+              className="absolute w-2 h-2 bg-amber-400 rounded-full opacity-60"
+              style={{
+                left: `${45 + Math.sin(i * 0.785) * 30}%`,
+                top: `${50 + Math.cos(i * 0.785) * 30}%`
+              }}
+              animate={{
+                opacity: [0, 1, 0],
+                scale: [0.5, 1, 0.5],
+                rotate: [0, 360]
+              }}
+              transition={{
+                duration: 2,
+                repeat: Infinity,
+                delay: i * 0.25,
+                ease: "easeInOut"
+              }}
+            />
+          ))}
+        </div>
+        
+        {/* 进度提示 */}
+        <motion.p 
+          className="text-sm text-amber-200/70 font-serif mt-4"
+          animate={{ opacity: [0.5, 1, 0.5] }}
+          transition={{ duration: 2, repeat: Infinity }}
+        >
+          This may take a few moments...
+        </motion.p>
+      </motion.div>
+    );
+  };
+
 
   // 🎯 核心事件2,3: AI解读生成系统 - 移除降级版本
   const generateReading = async (cards, question) => {
@@ -859,10 +1012,41 @@ const ArcaneCards = () => {
     }
   };
 
-  return (
+  
+return (
     <div className="font-sans min-h-screen bg-gradient-to-br from-gray-900 via-purple-950 to-black text-white relative overflow-hidden">
-      <StarField />
+      {/* 全局loading遮罩 - 防止刷新闪现 */}
+      {!isClientReady && (
+        <div className="fixed inset-0 bg-gradient-to-br from-gray-900 via-purple-950 to-black flex items-center justify-center z-50">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="text-center"
+          >
+            <motion.div
+              className="text-4xl mb-4"
+              animate={{ 
+                rotate: [0, 360],
+                scale: [1, 1.2, 1]
+              }}
+              transition={{ 
+                rotate: { duration: 2, repeat: Infinity, ease: "linear" },
+                scale: { duration: 1, repeat: Infinity, ease: "easeInOut" }
+              }}
+            >
+              🔮
+            </motion.div>
+            <h1 className="text-2xl font-bold mb-2 bg-gradient-to-r from-amber-400 via-orange-300 to-amber-500 bg-clip-text text-transparent">
+              Crystarot
+            </h1>
+            <p className="text-amber-200/60 font-serif">Awakening...</p>
+          </motion.div>
+        </div>
+      )}
       
+      {/* 只有在客户端准备好后才显示主要内容 */}
+      {isClientReady && (
+      <>
       <div className="relative z-10 min-h-screen">
         
         {/* 页面1: Landing页 */}
@@ -1657,16 +1841,84 @@ const ArcaneCards = () => {
           )}
 
           {/* 翻牌阶段 */}
-          {cardSelectionPhase === 'revealing' && revealedCard && (
+          {cardSelectionPhase === 'revealing' && revealedCard && !isLoadingReading && (
             <motion.div 
-              className="text-center mt-12"
+              className="text-center mt-8"
               animate={{ 
                 opacity: currentPage === 3 ? 1 : 0,
                 scale: currentPage === 3 ? 1 : 0.8
               }}
               transition={{ duration: 0.4 }}
             >
-              <div className="flex justify-center mb-4">
+              {/* 大图案展示区域 */}
+              <motion.div 
+                className="mb-6"
+                initial={{ scale: 0, rotate: -180 }}
+                animate={{ scale: 1, rotate: 0 }}
+                transition={{ delay: 0.5, duration: 0.8, type: "spring", stiffness: 200 }}
+              >
+                <div className={`w-32 h-32 mx-auto rounded-full bg-gradient-to-br ${CardSymbols[revealedCard.name]?.color || 'from-purple-400 to-violet-500'} border-4 border-amber-400 shadow-2xl flex items-center justify-center relative overflow-hidden`}>
+                  {/* 背景光效 */}
+                  <motion.div
+                    className="absolute inset-0 bg-gradient-to-r from-amber-400/20 to-transparent rounded-full"
+                    animate={{ 
+                      rotate: [0, 360],
+                      opacity: [0.3, 0.6, 0.3]
+                    }}
+                    transition={{ 
+                      rotate: { duration: 8, repeat: Infinity, ease: "linear" },
+                      opacity: { duration: 2, repeat: Infinity }
+                    }}
+                  />
+                  
+                  {/* 主符号 */}
+                  <motion.div
+                    className="text-6xl filter drop-shadow-2xl z-10"
+                    animate={{ 
+                      scale: [1, 1.1, 1],
+                      rotate: [0, 3, -3, 0]
+                    }}
+                    transition={{ duration: 3, repeat: Infinity }}
+                  >
+                    {CardSymbols[revealedCard.name]?.symbol || '✦'}
+                  </motion.div>
+                  
+                  {/* 装饰符号 */}
+                  <motion.div
+                    className="absolute top-2 right-2 text-xl opacity-60"
+                    animate={{ 
+                      opacity: [0.3, 1, 0.3],
+                      rotate: [0, 360]
+                    }}
+                    transition={{ duration: 4, repeat: Infinity }}
+                  >
+                    {CardSymbols[revealedCard.name]?.accent || '✨'}
+                  </motion.div>
+                </div>
+              </motion.div>
+              
+              {/* 卡牌名称 */}
+              <motion.div
+                className="mb-4"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 1, duration: 0.5 }}
+              >
+                <h3 className="text-2xl font-bold text-amber-100 mb-2">
+                  {revealedCard.name}
+                </h3>
+                <p className="text-sm opacity-80 text-amber-200/70">
+                  {revealedCard.upright ? 'Upright' : 'Reversed'} • {revealedCard.element} Element
+                </p>
+              </motion.div>
+              
+              {/* 小卡牌展示 */}
+              <motion.div 
+                className="flex justify-center mb-4"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 1.5, duration: 0.4 }}
+              >
                 <Card
                   card={revealedCard}
                   index={0}
@@ -1674,15 +1926,29 @@ const ArcaneCards = () => {
                   onClick={() => {}}
                   isRevealed={true}
                 />
-              </div>
+              </motion.div>
+              
               <motion.p 
                 className="text-amber-200 font-serif"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                transition={{ delay: 1, duration: 0.4 }}
+                transition={{ delay: 2, duration: 0.4 }}
               >
                 Your destiny is revealed...
               </motion.p>
+            </motion.div>
+          )}
+
+          {/* AI 解读加载阶段 - 新增 */}
+          {isLoadingReading && (
+            <motion.div 
+              className="text-center mt-8"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              transition={{ duration: 0.3 }}
+            >
+              <ReadingLoadingAnimation />
             </motion.div>
           )}
         </motion.div>
@@ -2015,6 +2281,8 @@ const ArcaneCards = () => {
           </div>
         </motion.div>
       </div>
+      </>
+      )}
     </div>
   );
 };
